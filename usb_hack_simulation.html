@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USB 보안 시뮬레이션</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+KR:wght@400;700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0a;
+    color: #00ff41;
+    font-family: 'Share Tech Mono', monospace;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* === PHASE 0: USB INSERT SCREEN === */
+  #phase-start {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #0d1117 0%, #161b22 50%, #0d1117 100%);
+    z-index: 1000;
+    cursor: pointer;
+  }
+
+  #phase-start .usb-icon {
+    font-size: 120px;
+    animation: float 3s ease-in-out infinite;
+    filter: drop-shadow(0 0 30px rgba(0, 255, 65, 0.3));
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
+  }
+
+  #phase-start h1 {
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 42px;
+    font-weight: 900;
+    color: #e6edf3;
+    margin-top: 30px;
+    letter-spacing: -1px;
+  }
+
+  #phase-start p {
+    font-family: 'Noto Sans KR', sans-serif;
+    color: #8b949e;
+    font-size: 18px;
+    margin-top: 16px;
+  }
+
+  .pulse-ring {
+    position: absolute;
+    width: 200px; height: 200px;
+    border: 2px solid rgba(0,255,65,0.2);
+    border-radius: 50%;
+    animation: pulse-ring 2s ease-out infinite;
+  }
+  .pulse-ring:nth-child(2) { animation-delay: 0.5s; }
+  .pulse-ring:nth-child(3) { animation-delay: 1s; }
+
+  @keyframes pulse-ring {
+    0% { transform: scale(0.8); opacity: 1; }
+    100% { transform: scale(2.5); opacity: 0; }
+  }
+
+  /* === PHASE 1: TERMINAL HACK === */
+  #phase-hack {
+    display: none;
+    position: fixed; inset: 0;
+    background: #0a0a0a;
+    z-index: 900;
+    padding: 20px;
+    overflow: hidden;
+  }
+
+  .terminal-header {
+    background: #1a1a2e;
+    border: 1px solid #333;
+    border-radius: 8px 8px 0 0;
+    padding: 10px 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .terminal-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+  }
+  .dot-red { background: #ff5f56; }
+  .dot-yellow { background: #ffbd2e; }
+  .dot-green { background: #27c93f; }
+
+  .terminal-title {
+    color: #888;
+    font-size: 13px;
+    margin-left: 10px;
+  }
+
+  .terminal-body {
+    background: #0d1117;
+    border: 1px solid #333;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    padding: 20px;
+    height: calc(100vh - 100px);
+    overflow-y: auto;
+    font-size: 14px;
+    line-height: 1.8;
+  }
+
+  .terminal-body::-webkit-scrollbar { width: 6px; }
+  .terminal-body::-webkit-scrollbar-track { background: #0d1117; }
+  .terminal-body::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+  .line { opacity: 0; animation: fadeIn 0.1s forwards; }
+  .line.prompt { color: #58a6ff; }
+  .line.success { color: #00ff41; }
+  .line.warning { color: #ffbd2e; }
+  .line.danger { color: #ff4444; }
+  .line.info { color: #8b949e; }
+  .line.data { color: #79c0ff; }
+
+  @keyframes fadeIn { to { opacity: 1; } }
+
+  .cursor-blink::after {
+    content: '█';
+    animation: blink 0.7s step-end infinite;
+  }
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  /* Progress bar */
+  .progress-container {
+    background: #161b22;
+    border: 1px solid #333;
+    border-radius: 4px;
+    height: 20px;
+    margin: 8px 0;
+    overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #00ff41, #00cc33);
+    width: 0%;
+    transition: width 0.3s;
+    box-shadow: 0 0 10px rgba(0,255,65,0.5);
+  }
+
+  /* File tree */
+  .file-tree {
+    margin: 5px 0 5px 20px;
+    border-left: 1px solid #333;
+    padding-left: 15px;
+  }
+
+  /* === PHASE 2: DATA EXFIL === */
+  #phase-data {
+    display: none;
+    position: fixed; inset: 0;
+    background: #0a0a0a;
+    z-index: 800;
+  }
+
+  .data-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    padding: 20px;
+    height: 100vh;
+  }
+
+  .data-panel {
+    background: #0d1117;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 16px;
+    overflow: hidden;
+  }
+
+  .data-panel h3 {
+    color: #ff4444;
+    font-size: 14px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #222;
+    font-family: 'Noto Sans KR', sans-serif;
+  }
+
+  .data-scroll {
+    font-size: 11px;
+    line-height: 1.6;
+    color: #79c0ff;
+    overflow: hidden;
+    height: calc(100% - 40px);
+  }
+
+  .data-row {
+    opacity: 0;
+    animation: slideIn 0.15s forwards;
+    padding: 2px 0;
+    border-bottom: 1px solid #111;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  /* === PHASE 3: RANSOMWARE === */
+  #phase-ransom {
+    display: none;
+    position: fixed; inset: 0;
+    background: #1a0000;
+    z-index: 700;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .ransom-box {
+    background: #0d0d0d;
+    border: 3px solid #ff0000;
+    border-radius: 12px;
+    padding: 50px 60px;
+    max-width: 700px;
+    text-align: center;
+    box-shadow: 0 0 100px rgba(255,0,0,0.3);
+    animation: shake 0.5s ease-in-out;
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-10px); }
+    40% { transform: translateX(10px); }
+    60% { transform: translateX(-5px); }
+    80% { transform: translateX(5px); }
+  }
+
+  .ransom-box .skull {
+    font-size: 80px;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+
+  .ransom-box h1 {
+    font-family: 'Noto Sans KR', sans-serif;
+    color: #ff0000;
+    font-size: 36px;
+    margin: 20px 0;
+    text-shadow: 0 0 20px rgba(255,0,0,0.5);
+  }
+
+  .ransom-box p {
+    font-family: 'Noto Sans KR', sans-serif;
+    color: #ff6666;
+    font-size: 16px;
+    line-height: 1.8;
+    margin: 10px 0;
+  }
+
+  .countdown {
+    font-size: 48px;
+    color: #ff0000;
+    margin: 20px 0;
+    font-weight: bold;
+  }
+
+  .bitcoin {
+    color: #f7931a;
+    font-size: 14px;
+    margin-top: 15px;
+    padding: 10px;
+    background: #111;
+    border-radius: 6px;
+    word-break: break-all;
+  }
+
+  /* === PHASE 4: REVEAL === */
+  #phase-reveal {
+    display: none;
+    position: fixed; inset: 0;
+    z-index: 600;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+  }
+
+  .reveal-bg {
+    position: fixed; inset: 0;
+    background: linear-gradient(135deg, #0d1117 0%, #1a1a2e 50%, #0d1117 100%);
+  }
+
+  .reveal-content {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    max-width: 900px;
+  }
+
+  .reveal-content .check {
+    font-size: 100px;
+    animation: bounceIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes bounceIn {
+    0% { transform: scale(0); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .reveal-content h1 {
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 48px;
+    font-weight: 900;
+    color: #00ff41;
+    margin: 20px 0;
+    text-shadow: 0 0 30px rgba(0,255,65,0.3);
+  }
+
+  .reveal-content h2 {
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 24px;
+    color: #8b949e;
+    font-weight: 400;
+    margin-bottom: 40px;
+  }
+
+  .lesson-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-top: 30px;
+  }
+
+  .lesson-card {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 30px 20px;
+    opacity: 0;
+    transform: translateY(30px);
+    animation: cardIn 0.5s forwards;
+  }
+
+  @keyframes cardIn {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .lesson-card .icon { font-size: 40px; margin-bottom: 12px; }
+  .lesson-card h3 {
+    font-family: 'Noto Sans KR', sans-serif;
+    color: #e6edf3;
+    font-size: 18px;
+    margin-bottom: 8px;
+  }
+  .lesson-card p {
+    font-family: 'Noto Sans KR', sans-serif;
+    color: #8b949e;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  /* Matrix rain background */
+  #matrix-canvas {
+    position: fixed; inset: 0;
+    z-index: -1;
+    opacity: 0.06;
+  }
+
+  /* Glitch effect */
+  .glitch {
+    animation: glitch 0.3s linear;
+  }
+  @keyframes glitch {
+    0% { transform: translate(0); filter: hue-rotate(0deg); }
+    20% { transform: translate(-3px, 3px); filter: hue-rotate(90deg); }
+    40% { transform: translate(3px, -3px); filter: hue-rotate(180deg); }
+    60% { transform: translate(-2px, -2px); filter: hue-rotate(270deg); }
+    80% { transform: translate(2px, 2px); filter: hue-rotate(360deg); }
+    100% { transform: translate(0); filter: hue-rotate(0deg); }
+  }
+
+  /* Screen flash */
+  .flash {
+    position: fixed; inset: 0;
+    background: white;
+    z-index: 9999;
+    animation: flashAnim 0.3s forwards;
+    pointer-events: none;
+  }
+  @keyframes flashAnim {
+    0% { opacity: 0.8; }
+    100% { opacity: 0; }
+  }
+
+  .skip-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 10000;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid #555;
+    color: #888;
+    padding: 8px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 13px;
+    transition: all 0.2s;
+  }
+  .skip-btn:hover {
+    background: rgba(255,255,255,0.2);
+    color: #ccc;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="matrix-canvas"></canvas>
+
+<!-- PHASE 0: START -->
+<div id="phase-start" onclick="startSimulation()">
+  <div class="pulse-ring"></div>
+  <div class="pulse-ring"></div>
+  <div class="pulse-ring"></div>
+  <div class="usb-icon">🔌</div>
+  <h1>USB 보안 시뮬레이션</h1>
+  <p>화면을 클릭하면 시뮬레이션이 시작됩니다</p>
+</div>
+
+<!-- PHASE 1: TERMINAL -->
+<div id="phase-hack">
+  <div class="terminal-header">
+    <div class="terminal-dot dot-red"></div>
+    <div class="terminal-dot dot-yellow"></div>
+    <div class="terminal-dot dot-green"></div>
+    <span class="terminal-title">root@attacker:~# USB Payload Execution</span>
+  </div>
+  <div class="terminal-body" id="terminal"></div>
+</div>
+
+<!-- PHASE 2: DATA PANELS -->
+<div id="phase-data">
+  <div class="data-grid">
+    <div class="data-panel">
+      <h3>📋 탈취된 키보드 입력 (키로거)</h3>
+      <div class="data-scroll" id="keylog-panel"></div>
+    </div>
+    <div class="data-panel">
+      <h3>📁 유출된 파일 목록</h3>
+      <div class="data-scroll" id="files-panel"></div>
+    </div>
+    <div class="data-panel">
+      <h3>🔑 탈취된 계정 정보</h3>
+      <div class="data-scroll" id="creds-panel"></div>
+    </div>
+    <div class="data-panel">
+      <h3>🌐 브라우저 기록 수집</h3>
+      <div class="data-scroll" id="browser-panel"></div>
+    </div>
+  </div>
+</div>
+
+<!-- PHASE 3: RANSOMWARE -->
+<div id="phase-ransom">
+  <div class="ransom-box">
+    <div class="skull">💀</div>
+    <h1>YOUR FILES ARE ENCRYPTED</h1>
+    <p>이 컴퓨터의 모든 파일이 암호화되었습니다.<br>
+    학생 성적 데이터, 생활기록부, 개인정보 파일이 모두 잠겼습니다.</p>
+    <div class="countdown" id="countdown">71:59:59</div>
+    <p>위 시간 내에 비트코인을 송금하지 않으면<br>모든 데이터가 영구 삭제됩니다.</p>
+    <div class="bitcoin">💰 송금 주소: bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh<br>요구 금액: 2.5 BTC (≈ ₩250,000,000)</div>
+  </div>
+</div>
+
+<!-- PHASE 4: REVEAL -->
+<div id="phase-reveal">
+  <div class="reveal-bg"></div>
+  <div class="reveal-content">
+    <div class="check">✅</div>
+    <h1>이것은 모의 훈련입니다</h1>
+    <h2>하지만 실제로 이런 일이 일어날 수 있습니다</h2>
+    <div class="lesson-cards">
+      <div class="lesson-card" style="animation-delay: 0.2s;">
+        <div class="icon">🔌</div>
+        <h3>USB를 꽂지 마세요</h3>
+        <p>출처를 모르는 USB는 절대 컴퓨터에 연결하지 마세요. 꽂는 순간 자동 실행됩니다.</p>
+      </div>
+      <div class="lesson-card" style="animation-delay: 0.4s;">
+        <div class="icon">🛡️</div>
+        <h3>호기심이 위험입니다</h3>
+        <p>"인사평가 결과" 같은 파일명은 의도적 미끼입니다. 사회공학적 공격의 핵심입니다.</p>
+      </div>
+      <div class="lesson-card" style="animation-delay: 0.6s;">
+        <div class="icon">🏫</div>
+        <h3>학교는 표적입니다</h3>
+        <p>학생 개인정보, 성적, 생기부 등 민감한 데이터가 가득합니다. 보안이 곧 학생 보호입니다.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<button class="skip-btn" id="skip-btn" onclick="skipToNext()" style="display:none;">다음 단계 ▶</button>
+
+<script>
+// Matrix rain
+const canvas = document.getElementById('matrix-canvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789ABCDEF';
+const fontSize = 14;
+const columns = canvas.width / fontSize;
+const drops = Array(Math.floor(columns)).fill(1);
+
+function drawMatrix() {
+  ctx.fillStyle = 'rgba(10, 10, 10, 0.05)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#00ff41';
+  ctx.font = fontSize + 'px monospace';
+  for (let i = 0; i < drops.length; i++) {
+    const text = chars[Math.floor(Math.random() * chars.length)];
+    ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+    if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+    drops[i]++;
+  }
+}
+setInterval(drawMatrix, 50);
+
+let currentPhase = 0;
+let phaseTimeout = null;
+
+function flash() {
+  const f = document.createElement('div');
+  f.className = 'flash';
+  document.body.appendChild(f);
+  setTimeout(() => f.remove(), 300);
+}
+
+function skipToNext() {
+  if (phaseTimeout) clearTimeout(phaseTimeout);
+  if (currentPhase === 1) startDataPhase();
+  else if (currentPhase === 2) startRansomPhase();
+  else if (currentPhase === 3) startRevealPhase();
+}
+
+// === PHASE 0 → 1 ===
+function startSimulation() {
+  document.getElementById('phase-start').style.display = 'none';
+  document.getElementById('phase-hack').style.display = 'block';
+  document.getElementById('skip-btn').style.display = 'block';
+  currentPhase = 1;
+  runTerminal();
+}
+
+// === TERMINAL SEQUENCE ===
+async function runTerminal() {
+  const term = document.getElementById('terminal');
+  const lines = [
+    { text: '$ USB device detected: SanDisk Ultra 32GB', cls: 'info', delay: 300 },
+    { text: '$ Mounting /dev/sdb1 → /media/usb ...', cls: 'info', delay: 500 },
+    { text: '[OK] USB mounted successfully', cls: 'success', delay: 400 },
+    { text: '', cls: '', delay: 200 },
+    { text: '$ ls -la /media/usb/', cls: 'prompt', delay: 600 },
+    { text: 'drwxr-xr-x  2 root root  4096  인사평가_결과.xlsx', cls: 'data', delay: 300 },
+    { text: '-rwxr-xr-x  1 root root  2048  .autorun.bat', cls: 'danger', delay: 300 },
+    { text: '-rwxr-xr-x  1 root root 15360  .payload.exe', cls: 'danger', delay: 300 },
+    { text: '', cls: '', delay: 200 },
+    { text: '⚠️  Hidden executable detected!', cls: 'warning', delay: 500 },
+    { text: '$ .autorun.bat → executing .payload.exe ...', cls: 'danger', delay: 800 },
+    { text: '', cls: '', delay: 300 },
+    { text: '▶ STAGE 1: Privilege Escalation', cls: 'warning', delay: 600 },
+    { text: '  [*] Exploiting CVE-2025-21418 ...', cls: 'info', delay: 400 },
+    { text: '  [*] Bypassing UAC ...', cls: 'info', delay: 400 },
+    { text: '  [+] Got SYSTEM privileges ✓', cls: 'success', delay: 500 },
+    { text: '', cls: '', delay: 200 },
+    { text: '▶ STAGE 2: Persistence Installation', cls: 'warning', delay: 600 },
+    { text: '  [*] Adding registry key for auto-start ...', cls: 'info', delay: 400 },
+    { text: '  [*] Installing rootkit in MBR ...', cls: 'info', delay: 400 },
+    { text: '  [+] Persistence established ✓', cls: 'success', delay: 500 },
+    { text: '', cls: '', delay: 200 },
+    { text: '▶ STAGE 3: Network Reconnaissance', cls: 'warning', delay: 600 },
+    { text: '  [*] Scanning internal network 10.10.0.0/16 ...', cls: 'info', delay: 400 },
+    { text: '  [+] Found 47 hosts alive', cls: 'success', delay: 300 },
+    { text: '  [+] Found NEIS server: 10.10.1.50 (나이스 교육행정시스템)', cls: 'danger', delay: 400 },
+    { text: '  [+] Found file server: 10.10.1.100 (교무업무시스템)', cls: 'danger', delay: 400 },
+    { text: '  [+] Found DB server: 10.10.1.200 (학생정보 DB)', cls: 'danger', delay: 400 },
+    { text: '', cls: '', delay: 200 },
+    { text: '▶ STAGE 4: Credential Harvesting', cls: 'warning', delay: 600 },
+    { text: '  [*] Dumping browser saved passwords ...', cls: 'info', delay: 400 },
+    { text: '  [+] Chrome passwords: 23 entries found', cls: 'danger', delay: 300 },
+    { text: '  [+] NEIS login credentials captured ✓', cls: 'danger', delay: 400 },
+    { text: '  [*] Installing keylogger ...', cls: 'info', delay: 400 },
+    { text: '  [+] Keylogger active ✓', cls: 'success', delay: 300 },
+    { text: '', cls: '', delay: 200 },
+    { text: '▶ STAGE 5: Data Exfiltration', cls: 'warning', delay: 600 },
+    { text: '  [*] Scanning for sensitive files ...', cls: 'info', delay: 400 },
+    { text: '  [+] 학생_성적_2025.xlsx (1.2MB)', cls: 'danger', delay: 300 },
+    { text: '  [+] 생활기록부_3학년.hwp (3.4MB)', cls: 'danger', delay: 300 },
+    { text: '  [+] 교원_인사기록.pdf (890KB)', cls: 'danger', delay: 300 },
+    { text: '  [+] 학부모_연락처.csv (420KB)', cls: 'danger', delay: 300 },
+    { text: '  [+] 건강검진_결과.xlsx (2.1MB)', cls: 'danger', delay: 300 },
+    { text: '', cls: '', delay: 200 },
+    { text: 'progress', cls: 'progress', delay: 2000 },
+    { text: '', cls: '', delay: 200 },
+    { text: '  [+] 총 2,847개 파일 (4.7GB) 외부 서버로 전송 완료 ✓', cls: 'danger', delay: 600 },
+    { text: '', cls: '', delay: 300 },
+    { text: '▶ STAGE 6: Deploying Ransomware ...', cls: 'danger', delay: 800 },
+    { text: '  [*] Encrypting all files with AES-256 ...', cls: 'danger', delay: 500 },
+    { text: '  [████████████████████] 100% - 완료', cls: 'danger', delay: 1000 },
+    { text: '', cls: '', delay: 500 },
+    { text: '🔒 ALL FILES ENCRYPTED. DEPLOYING RANSOM NOTE...', cls: 'danger', delay: 1000 },
+  ];
+
+  for (const line of lines) {
+    if (line.cls === 'progress') {
+      const container = document.createElement('div');
+      container.className = 'progress-container';
+      container.innerHTML = '<div class="progress-bar" id="exfil-bar"></div>';
+      term.appendChild(container);
+      const bar = document.getElementById('exfil-bar');
+      for (let i = 0; i <= 100; i += 2) {
+        bar.style.width = i + '%';
+        await sleep(30);
+      }
+    } else {
+      const div = document.createElement('div');
+      div.className = 'line ' + line.cls;
+      div.textContent = line.text;
+      term.appendChild(div);
+    }
+    term.scrollTop = term.scrollHeight;
+    await sleep(line.delay);
+  }
+
+  await sleep(1500);
+  flash();
+  startDataPhase();
+}
+
+// === PHASE 2: DATA EXFILTRATION VIEW ===
+function startDataPhase() {
+  currentPhase = 2;
+  document.getElementById('phase-hack').style.display = 'none';
+  document.getElementById('phase-data').style.display = 'block';
+
+  // Keylogger panel
+  const keylogs = [
+    '09:15:32 [Chrome] neis.go.kr → ID: kimteacher → PW: ****1234',
+    '09:16:01 [Chrome] school.jbe.go.kr → 로그인 시도',
+    '09:18:45 [HWP] 3학년 2반 생활기록부 작성 중...',
+    '09:22:10 [Chrome] 학부모 상담 일지 검색',
+    '09:25:33 [Excel] 학생_성적_입력.xlsx 편집',
+    '09:30:17 [Chrome] mail.google.com → 비밀번호 입력 감지',
+    '09:32:44 [메모장] 학생 상담 기록 작성',
+    '09:35:22 [Chrome] eduro.go.kr → 건강상태 자가진단',
+    '09:38:11 [Chrome] banking.nonghyup.com → 계좌 로그인',
+    '09:40:55 [HWP] 교육과정_운영계획서.hwp 작성',
+    '09:43:28 [Chrome] kftc.or.kr → 인증서 로그인',
+    '09:45:10 [Excel] 방과후_수강신청_명단.xlsx',
+    '09:48:33 [Chrome] 정부24 로그인 → 공인인증서 사용',
+    '09:51:07 [Chrome] naver.com → 네이버 로그인',
+    '09:55:42 [HWP] 학교폭력_사안보고서.hwp 작성',
+  ];
+
+  const files = [
+    '📄 C:\\Users\\Teacher\\Desktop\\학생성적\\1학년_중간고사.xlsx (2.3MB)',
+    '📄 C:\\Users\\Teacher\\Desktop\\생활기록부\\3-1반.hwp (1.8MB)',
+    '📄 C:\\Users\\Teacher\\Documents\\인사기록\\경력증명서.pdf (540KB)',
+    '📄 C:\\Users\\Teacher\\Desktop\\학부모연락처_전체.csv (380KB)',
+    '📄 C:\\Users\\Teacher\\Documents\\상담일지\\2025_1학기.docx (890KB)',
+    '📄 C:\\NEIS_Data\\학생건강기록.xlsx (4.2MB)',
+    '📄 C:\\Users\\Teacher\\Desktop\\교육과정\\수업시수배당표.xlsx (1.1MB)',
+    '📁 C:\\Users\\Teacher\\Desktop\\학교폭력\\사안처리대장 (12 files)',
+    '📄 C:\\Users\\Teacher\\Documents\\세금\\원천징수영수증.pdf (230KB)',
+    '📄 C:\\Users\\Teacher\\Desktop\\방과후\\수강생_개인정보.xlsx (670KB)',
+    '📁 C:\\Users\\Teacher\\Pictures\\학교행사 (347 photos)',
+    '📄 C:\\Users\\Teacher\\Desktop\\Wee클래스\\심리검사결과.xlsx (1.5MB)',
+    '📄 C:\\Program Files\\NEIS\\cert\\공인인증서.pfx (4KB) ⚠️',
+  ];
+
+  const creds = [
+    '🔑 NEIS (나이스) → kimteacher / qwer1234!',
+    '🔑 학교 WiFi → SchoolAdmin / school2025#',
+    '🔑 Gmail → kim.teacher.hs@gmail.com / Passw0rd!',
+    '🔑 Naver → 김선생_고등 / naver1234',
+    '🔑 교무업무시스템 → admin_kim / admin123!',
+    '🔑 에듀넷 → T-kimhs / edunet2024',
+    '🔑 정부24 → 공인인증서 비밀번호 포함',
+    '🔑 농협 인터넷뱅킹 → 계좌번호 + 이체비밀번호',
+    '🔑 학교 NAS → teacher_share / NAS1234',
+    '🔑 EBS → kimteacher_ebs / ebs2025!',
+  ];
+
+  const browser = [
+    '🌐 09:10 neis.go.kr - 나이스 교육행정시스템',
+    '🌐 09:12 school.jbe.go.kr - 학교알리미',
+    '🌐 09:15 eduro.go.kr - 학생건강상태 자가진단',
+    '🌐 09:18 kftc.or.kr - 금융결제원',
+    '🌐 09:22 banking.nonghyup.com - NH농협 인터넷뱅킹',
+    '🌐 09:25 hometax.go.kr - 홈택스 연말정산',
+    '🌐 09:30 gov.kr - 정부24 증명서 발급',
+    '🌐 09:33 mail.google.com - Gmail (38개 미읽은 메일)',
+    '🌐 09:35 cafe.naver.com - 교사 커뮤니티',
+    '🌐 09:40 youtube.com - 수업자료 검색',
+    '🌐 09:42 coupang.com - 교실 물품 구매',
+    '🌐 09:45 클리앙 - 자유게시판',
+    '🌐 쿠키/세션 토큰 58개 수집 완료',
+    '🌐 자동저장 비밀번호 23개 복호화 완료',
+  ];
+
+  fillPanel('keylog-panel', keylogs, 200);
+  fillPanel('files-panel', files, 250);
+  fillPanel('creds-panel', creds, 300);
+  fillPanel('browser-panel', browser, 220);
+
+  phaseTimeout = setTimeout(() => {
+    flash();
+    startRansomPhase();
+  }, 8000);
+}
+
+function fillPanel(id, items, interval) {
+  const panel = document.getElementById(id);
+  items.forEach((item, i) => {
+    setTimeout(() => {
+      const div = document.createElement('div');
+      div.className = 'data-row';
+      div.textContent = item;
+      div.style.animationDelay = (i * 0.05) + 's';
+      panel.appendChild(div);
+    }, i * interval);
+  });
+}
+
+// === PHASE 3: RANSOMWARE ===
+function startRansomPhase() {
+  currentPhase = 3;
+  document.getElementById('phase-data').style.display = 'none';
+  const ransom = document.getElementById('phase-ransom');
+  ransom.style.display = 'flex';
+
+  // Countdown
+  let secs = 259199;
+  const cd = document.getElementById('countdown');
+  const cdInterval = setInterval(() => {
+    secs--;
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    cd.textContent = `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }, 1000);
+
+  phaseTimeout = setTimeout(() => {
+    clearInterval(cdInterval);
+    flash();
+    startRevealPhase();
+  }, 8000);
+}
+
+// === PHASE 4: REVEAL ===
+function startRevealPhase() {
+  currentPhase = 4;
+  document.getElementById('phase-ransom').style.display = 'none';
+  document.getElementById('phase-reveal').style.display = 'flex';
+  document.getElementById('skip-btn').style.display = 'none';
+
+  // Change matrix color to green/calm
+  document.getElementById('matrix-canvas').style.opacity = '0.03';
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+</body>
+</html>
