@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>USB 보안 시뮬레이션</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+KR:wght@400;700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    background: #0a0a0a;
+    color: #00ff41;
+    font-family: 'Share Tech Mono', monospace;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+
+  /* ============================================
+     MATRIX RAIN (lightweight for mobile)
+  ============================================ */
+  #matrix-canvas {
+    position: fixed; inset: 0;
+    z-index: -1;
+    opacity: 0.05;
+  }
+
+  /* ============================================
+     PHASE 0: USB INSERT
+  ============================================ */
+  #phase-start {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #0d1117 0%, #161b22 50%, #0d1117 100%);
+    z-index: 1000;
+    cursor: pointer;
+    padding: 24px;
+  }
+
+  #phase-start .usb-icon {
+    font-size: 80px;
+    animation: float 3s ease-in-out infinite;
+    filter: drop-shadow(0 0 25px rgba(0, 255, 65, 0.3));
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-15px); }
+  }
+
+  .pulse-ring {
+    position: absolute;
+    width: 140px; height: 140px;
+    border: 2px solid rgba(0,255,65,0.2);
+    border-radius: 50%;
+    animation: pulse-ring 2s ease-out infinite;
+  }
+  .pulse-ring:nth-child(2) { animation-delay: 0.5s; }
+  .pulse-ring:nth-child(3) { animation-delay: 1s; }
+
+  @keyframes pulse-ring {
+    0% { transform: scale(0.8); opacity: 1; }
+    100% { transform: scale(2.5); opacity: 0; }
+  }
+
+  #phase-start h1 {
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 28px;
+    font-weight: 900;
+    color: #e6edf3;
+    margin-top: 24px;
+    letter-spacing: -0.5px;
+    text-align: center;
+    line-height: 1.3;
+  }
+
+  #phase-start p {
+    font-family: 'Noto Sans KR', sans-serif;
+    color: #8b949e;
+    font-size: 14px;
+    margin-top: 12px;
+  }
+
+  #phase-start .start-hint {
+    font-family: 'Noto Sans KR', sans-serif;
+    color: #4b5563;
+    font-size: 13px;
+    margin-top: 36px;
+    animation: blink 1.5s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+
+  /* ============================================
+     PHASE 1: TERMINAL
+  ============================================ */
+  #phase-hack {
+    display: none;
+    position: fixed; inset: 0;
+    background: #0a0a0a;
+    z-index: 900;
+    padding: 0;
+    overflow: hidden;
+    flex-direction: column;
+  }
+
+  .terminal-header {
+    background: #1a1a2e;
+    border-bottom: 1px solid #333;
+    padding: 10px 14px;
+    display: flex; align-items: center; gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .terminal-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+  .dot-red { background: #ff5f56; }
+  .dot-yellow { background: #ffbd2e; }
+  .dot-green { background: #27c93f; }
+
+  .terminal-title {
+    color: #888;
+    font-size: 10px;
+    margin-left: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .terminal-body {
+    background: #0d1117;
+    padding: 14px;
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    font-size: 11px;
+    line-height: 1.7;
+    padding-bottom: 80px;
+  }
+
+  .terminal-body::-webkit-scrollbar { width: 4px; }
+  .terminal-body::-webkit-scrollbar-track { background: #0d1117; }
+  .terminal-body::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+  .line {
+    opacity: 0;
+    animation: fadeIn 0.1s forwards;
+    word-break: break-all;
+  }
+  .line.prompt { color: #58a6ff; }
+  .line.success { color: #00ff41; }
+  .line.warning { color: #ffbd2e; }
+  .line.danger { color: #ff4444; }
+  .line.info { color: #8b949e; }
+  .line.data { color: #79c0ff; }
+
+  @keyframes fadeIn { to { opacity: 1; } }
+
+  /* Progress bar */
+  .progress-container {
+    background: #161b22;
+    border: 1px solid #333;
+    border-radius: 4px;
+    height: 16px;
+    margin: 6px 0;
+    overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #00ff41, #00cc33);
+    width: 0%;
+    transition: width 0.3s;
+    box-shadow: 0 0 8px rgba(0,255,65,0.5);
+  }
+
+  /* Stage header highlight */
+  .stage-header {
+    margin-top: 8px;
+    padding: 4px 8px;
+    background: rgba(255,189,46,0.08);
+    border-left: 3px solid #ffbd2e;
+    border-radius: 0 4px 4px 0;
+  }
+
+  /* ============================================
+     PHASE 2: DATA EXFIL (Mobile: swipeable tabs)
+  ============================================ */
+  #phase-data {
+    display: none;
+    position: fixed; inset: 0;
+    background: #0a0a0a;
+    z-index: 800;
+    flex-direction: column;
+  }
+
+  .data-tab-bar {
+    display: flex;
+    background: #161b22;
+    border-bottom: 1px solid #21262d;
+    flex-shrink: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .data-tab-bar::-webkit-scrollbar { display: none; }
+
+  .data-tab {
+    flex: none;
+    padding: 12px 14px;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    color: #8b949e;
+    border: none;
+    background: none;
+    cursor: pointer;
+    white-space: nowrap;
+    position: relative;
+    transition: color 0.2s;
+  }
+
+  .data-tab.active {
+    color: #ff4444;
+  }
+
+  .data-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 8px; right: 8px;
+    height: 2px;
+    background: #ff4444;
+    border-radius: 1px;
+  }
+
+  .data-tab .count {
+    display: inline-block;
+    background: #ff4444;
+    color: white;
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 8px;
+    margin-left: 3px;
+    min-width: 16px;
+    text-align: center;
+  }
+
+  .data-panels {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .data-panel-content {
+    position: absolute; inset: 0;
+    display: none;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px;
+    padding-bottom: 80px;
+  }
+
+  .data-panel-content.active { display: block; }
+
+  .data-panel-content .panel-header {
+    font-family: 'Noto Sans KR', sans-serif;
+    color: #ff4444;
+    font-size: 13px;
+    font-weight: 700;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #222;
+  }
+
+  .data-row {
+    opacity: 0;
+    animation: slideIn 0.15s forwards;
+    padding: 6px 0;
+    border-bottom: 1px solid #111;
+    font-size: 10px;
+    line-height: 1.5;
+    color: #79c0ff;
+    word-break: break-all;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  /* Live counter animation */
+  .live-indicator {
+    display: inline-block;
+    width: 6px; height: 6px;
+    background: #ff4444;
+    border-radius: 50%;
+    margin-right: 4px;
+    animation: livePulse 1s ease-in-out infinite;
+  }
+
+  @keyframes livePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* ============================================
+     PHASE 3: RANSOMWARE (Mobile compact)
+  ============================================ */
+  #phase-ransom {
+    display: none;
+    position: fixed; inset: 0;
+    background: #1a0000;
+    z-index: 700;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .ransom-box {
+    background: #0d0d0d;
+    border: 2px solid #ff0000;
+    border-radius: 12px;
+    padding: 28px 20px;
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: 0 0 60px rgba(255,0,0,0.25);
+    animation: shake 0.5s ease-in-out;
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(3px); }
+  }
+
+  .ransom-box .skull {
+    font-size: 56px;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+  }
+
+  .ransom-box h1 {
+    font-family: 'Noto Sans KR', sans-serif;
+    color: #ff0000;
+    font-size: 22px;
+    margin: 14px 0;
+    text-shadow: 0 0 15px rgba(255,0,0,0.5);
+    line-height: 1.3;
+  }
+
+  .ransom-box p {
+    font-family: 'Noto Sans KR', sans-serif;
+    color: #ff6666;
+    font-size: 13px;
+    line-height: 1.7;
+    margin: 8px 0;
+  }
+
+  .countdown {
+    font-size: 36px;
+    color: #ff0000;
+    margin: 16px 0;
+    font-weight: bold;
+    letter-spacing: 2px;
+  }
+
+  .bitcoin {
+    color: #f7931a;
+    font-size: 10px;
+    margin-top: 12px;
+    padding: 10px;
+    background: #111;
+    border-radius: 6px;
+    word-break: break-all;
+    line-height: 1.6;
+  }
+
+  /* ============================================
+     PHASE 4: REVEAL (Mobile: scroll cards)
+  ============================================ */
+  #phase-reveal {
+    display: none;
+    position: fixed; inset: 0;
+    z-index: 600;
+    flex-direction: column;
+    align-items: center;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 32px 16px;
+    padding-bottom: 40px;
+  }
+
+  .reveal-bg {
+    position: fixed; inset: 0;
+    background: linear-gradient(135deg, #0d1117 0%, #1a1a2e 50%, #0d1117 100%);
+    z-index: -1;
+  }
+
+  .reveal-content {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .reveal-content .check {
+    font-size: 64px;
+    animation: bounceIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes bounceIn {
+    0% { transform: scale(0); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .reveal-content h1 {
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 26px;
+    font-weight: 900;
+    color: #00ff41;
+    margin: 16px 0 6px;
+    text-shadow: 0 0 20px rgba(0,255,65,0.3);
+    line-height: 1.3;
+  }
+
+  .reveal-content h2 {
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 14px;
+    color: #8b949e;
+    font-weight: 400;
+    margin-bottom: 28px;
+  }
+
+  .lesson-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .lesson-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 18px 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    text-align: left;
+    opacity: 0;
+    transform: translateY(20px);
+    animation: cardIn 0.5s forwards;
+  }
+
+  @keyframes cardIn {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .lesson-card .icon { font-size: 28px; flex-shrink: 0; line-height: 1; }
+  .lesson-card .card-text { flex: 1; }
+  .lesson-card h3 {
+    font-family: 'Noto Sans KR', sans-serif;
+    color: #e6edf3;
+    font-size: 15px;
+    margin-bottom: 4px;
+  }
+  .lesson-card p {
+    font-family: 'Noto Sans KR', sans-serif;
+    color: #8b949e;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  /* ============================================
+     NAVIGATION (Full-width bottom bar)
+  ============================================ */
+  .nav-btn {
+    position: fixed;
+    bottom: 0;
+    left: 0; right: 0;
+    z-index: 10000;
+    background: rgba(22, 27, 34, 0.95);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: none;
+    border-top: 1px solid #21262d;
+    color: #e6edf3;
+    padding: 16px;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    display: none;
+    text-align: center;
+    transition: background 0.2s;
+  }
+  .nav-btn:active { background: rgba(255,255,255,0.1); }
+
+  /* Phase indicator dots */
+  .phase-dots {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .phase-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #333;
+    transition: all 0.3s;
+  }
+
+  .phase-dot.active { background: #00ff41; width: 18px; border-radius: 3px; }
+  .phase-dot.done { background: #1a472a; }
+
+  /* Flash */
+  .flash {
+    position: fixed; inset: 0;
+    background: white;
+    z-index: 99999;
+    animation: flashAnim 0.25s forwards;
+    pointer-events: none;
+  }
+  @keyframes flashAnim {
+    0% { opacity: 0.6; }
+    100% { opacity: 0; }
+  }
+
+  /* Safe area */
+  @supports (padding-top: env(safe-area-inset-top)) {
+    .terminal-header { padding-top: calc(10px + env(safe-area-inset-top)); }
+    .data-tab-bar { padding-top: env(safe-area-inset-top); }
+    .nav-btn { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+    #phase-ransom { padding-top: env(safe-area-inset-top); }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="matrix-canvas"></canvas>
+
+<!-- PHASE 0: START -->
+<div id="phase-start" onclick="startSimulation()">
+  <div class="pulse-ring"></div>
+  <div class="pulse-ring"></div>
+  <div class="pulse-ring"></div>
+  <div class="usb-icon">🔌</div>
+  <h1>USB 보안 시뮬레이션</h1>
+  <p>USB 하나로 모든 것이 털립니다</p>
+  <div class="start-hint">탭하여 시작</div>
+</div>
+
+<!-- PHASE 1: TERMINAL -->
+<div id="phase-hack">
+  <div class="terminal-header">
+    <div class="terminal-dot dot-red"></div>
+    <div class="terminal-dot dot-yellow"></div>
+    <div class="terminal-dot dot-green"></div>
+    <span class="terminal-title">root@attacker:~# USB Payload</span>
+  </div>
+  <div class="terminal-body" id="terminal"></div>
+</div>
+
+<!-- PHASE 2: DATA PANELS (Tab layout) -->
+<div id="phase-data">
+  <div class="data-tab-bar">
+    <button class="data-tab active" onclick="switchDataTab(0)">
+      📋 키로거 <span class="count" id="count-0">0</span>
+    </button>
+    <button class="data-tab" onclick="switchDataTab(1)">
+      📁 파일유출 <span class="count" id="count-1">0</span>
+    </button>
+    <button class="data-tab" onclick="switchDataTab(2)">
+      🔑 계정탈취 <span class="count" id="count-2">0</span>
+    </button>
+    <button class="data-tab" onclick="switchDataTab(3)">
+      🌐 브라우저 <span class="count" id="count-3">0</span>
+    </button>
+  </div>
+  <div class="data-panels">
+    <div class="data-panel-content active" id="dp-0">
+      <div class="panel-header"><span class="live-indicator"></span>실시간 키보드 입력 캡처</div>
+    </div>
+    <div class="data-panel-content" id="dp-1">
+      <div class="panel-header"><span class="live-indicator"></span>유출 중인 파일 목록</div>
+    </div>
+    <div class="data-panel-content" id="dp-2">
+      <div class="panel-header"><span class="live-indicator"></span>탈취된 계정 정보</div>
+    </div>
+    <div class="data-panel-content" id="dp-3">
+      <div class="panel-header"><span class="live-indicator"></span>브라우저 기록 수집</div>
+    </div>
+  </div>
+</div>
+
+<!-- PHASE 3: RANSOMWARE -->
+<div id="phase-ransom">
+  <div class="ransom-box">
+    <div class="skull">💀</div>
+    <h1>YOUR FILES ARE<br>ENCRYPTED</h1>
+    <p>이 컴퓨터의 모든 파일이 암호화되었습니다.<br>
+    학생 성적, 생활기록부, 개인정보가 모두 잠겼습니다.</p>
+    <div class="countdown" id="countdown">71:59:59</div>
+    <p>시간 내에 비트코인을 송금하지 않으면<br>모든 데이터가 영구 삭제됩니다.</p>
+    <div class="bitcoin">💰 bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh<br>요구 금액: 2.5 BTC (≈ ₩250,000,000)</div>
+  </div>
+</div>
+
+<!-- PHASE 4: REVEAL -->
+<div id="phase-reveal">
+  <div class="reveal-bg"></div>
+  <div class="reveal-content">
+    <div class="check">✅</div>
+    <h1>이것은 모의 훈련입니다</h1>
+    <h2>하지만 실제로 이런 일이 일어날 수 있습니다</h2>
+    <div class="lesson-cards">
+      <div class="lesson-card" style="animation-delay: 0.15s;">
+        <div class="icon">🔌</div>
+        <div class="card-text">
+          <h3>USB를 꽂지 마세요</h3>
+          <p>출처를 모르는 USB는 절대 컴퓨터에 연결하지 마세요. 꽂는 순간 자동 실행됩니다.</p>
+        </div>
+      </div>
+      <div class="lesson-card" style="animation-delay: 0.3s;">
+        <div class="icon">🛡️</div>
+        <div class="card-text">
+          <h3>호기심이 위험입니다</h3>
+          <p>"인사평가 결과" 같은 파일명은 의도적 미끼입니다. 사회공학적 공격의 핵심입니다.</p>
+        </div>
+      </div>
+      <div class="lesson-card" style="animation-delay: 0.45s;">
+        <div class="icon">🏫</div>
+        <div class="card-text">
+          <h3>학교는 표적입니다</h3>
+          <p>학생 개인정보, 성적, 생기부 등 민감한 데이터가 가득합니다. 보안이 곧 학생 보호입니다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom nav -->
+<button class="nav-btn" id="nav-btn" onclick="skipToNext()">
+  <div class="phase-dots">
+    <div class="phase-dot active" id="pdot-1"></div>
+    <div class="phase-dot" id="pdot-2"></div>
+    <div class="phase-dot" id="pdot-3"></div>
+    <div class="phase-dot" id="pdot-4"></div>
+  </div>
+  다음 단계 ▶
+</button>
+
+<script>
+// === Matrix rain (lighter for mobile) ===
+const canvas = document.getElementById('matrix-canvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+const chars = 'アイウエオカキクケコ0123456789ABCDEF';
+const fontSize = 12;
+const columns = canvas.width / fontSize;
+const drops = Array(Math.floor(columns)).fill(1);
+
+let matrixInterval;
+function drawMatrix() {
+  ctx.fillStyle = 'rgba(10, 10, 10, 0.06)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#00ff41';
+  ctx.font = fontSize + 'px monospace';
+  for (let i = 0; i < drops.length; i++) {
+    const text = chars[Math.floor(Math.random() * chars.length)];
+    ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+    if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+    drops[i]++;
+  }
+}
+// Slower interval on mobile for performance
+matrixInterval = setInterval(drawMatrix, 80);
+
+let currentPhase = 0;
+let phaseTimeout = null;
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function flash() {
+  const f = document.createElement('div');
+  f.className = 'flash';
+  document.body.appendChild(f);
+  setTimeout(() => f.remove(), 250);
+}
+
+function updatePhaseDots(active) {
+  for (let i = 1; i <= 4; i++) {
+    const dot = document.getElementById('pdot-' + i);
+    dot.className = 'phase-dot';
+    if (i === active) dot.classList.add('active');
+    else if (i < active) dot.classList.add('done');
+  }
+}
+
+function skipToNext() {
+  if (phaseTimeout) clearTimeout(phaseTimeout);
+  if (currentPhase === 1) startDataPhase();
+  else if (currentPhase === 2) startRansomPhase();
+  else if (currentPhase === 3) startRevealPhase();
+}
+
+// === Data tab switching ===
+let activeDataTab = 0;
+function switchDataTab(idx) {
+  activeDataTab = idx;
+  document.querySelectorAll('.data-tab').forEach((t, i) => {
+    t.classList.toggle('active', i === idx);
+  });
+  document.querySelectorAll('.data-panel-content').forEach((p, i) => {
+    p.classList.toggle('active', i === idx);
+  });
+}
+
+// === PHASE 0 → 1 ===
+function startSimulation() {
+  document.getElementById('phase-start').style.display = 'none';
+  const hackEl = document.getElementById('phase-hack');
+  hackEl.style.display = 'flex';
+  document.getElementById('nav-btn').style.display = 'block';
+  currentPhase = 1;
+  updatePhaseDots(1);
+  runTerminal();
+}
+
+// === TERMINAL SEQUENCE ===
+async function runTerminal() {
+  const term = document.getElementById('terminal');
+
+  const lines = [
+    { text: '$ USB detected: SanDisk Ultra 32GB', cls: 'info', delay: 300 },
+    { text: '$ Mounting /dev/sdb1 → /media/usb', cls: 'info', delay: 500 },
+    { text: '[OK] USB mounted', cls: 'success', delay: 400 },
+    { text: '', cls: '', delay: 150 },
+    { text: '$ ls -la /media/usb/', cls: 'prompt', delay: 500 },
+    { text: '  인사평가_결과.xlsx', cls: 'data', delay: 250 },
+    { text: '  .autorun.bat (hidden)', cls: 'danger', delay: 250 },
+    { text: '  .payload.exe (hidden)', cls: 'danger', delay: 250 },
+    { text: '', cls: '', delay: 150 },
+    { text: '⚠️ Hidden executable detected!', cls: 'warning', delay: 400 },
+    { text: '$ .autorun.bat → .payload.exe', cls: 'danger', delay: 600 },
+    { text: '', cls: '', delay: 200 },
+    { text: '▶ STAGE 1: 권한 탈취', cls: 'warning', delay: 500, stage: true },
+    { text: '  [*] CVE-2025-21418 공격 중...', cls: 'info', delay: 350 },
+    { text: '  [*] UAC 우회 중...', cls: 'info', delay: 350 },
+    { text: '  [+] SYSTEM 권한 획득 ✓', cls: 'success', delay: 400 },
+    { text: '', cls: '', delay: 150 },
+    { text: '▶ STAGE 2: 백도어 설치', cls: 'warning', delay: 500, stage: true },
+    { text: '  [*] 레지스트리 자동실행 등록...', cls: 'info', delay: 350 },
+    { text: '  [*] 루트킷 MBR 설치...', cls: 'info', delay: 350 },
+    { text: '  [+] 영구 백도어 설치 ✓', cls: 'success', delay: 400 },
+    { text: '', cls: '', delay: 150 },
+    { text: '▶ STAGE 3: 네트워크 스캔', cls: 'warning', delay: 500, stage: true },
+    { text: '  [*] 10.10.0.0/16 스캔 중...', cls: 'info', delay: 350 },
+    { text: '  [+] 47개 호스트 발견', cls: 'success', delay: 250 },
+    { text: '  [+] 나이스 서버: 10.10.1.50', cls: 'danger', delay: 300 },
+    { text: '  [+] 교무업무: 10.10.1.100', cls: 'danger', delay: 300 },
+    { text: '  [+] 학생DB: 10.10.1.200', cls: 'danger', delay: 300 },
+    { text: '', cls: '', delay: 150 },
+    { text: '▶ STAGE 4: 계정 수집', cls: 'warning', delay: 500, stage: true },
+    { text: '  [*] 브라우저 비밀번호 추출...', cls: 'info', delay: 350 },
+    { text: '  [+] Chrome 비밀번호 23개', cls: 'danger', delay: 250 },
+    { text: '  [+] NEIS 로그인 정보 획득 ✓', cls: 'danger', delay: 300 },
+    { text: '  [+] 키로거 설치 ✓', cls: 'success', delay: 250 },
+    { text: '', cls: '', delay: 150 },
+    { text: '▶ STAGE 5: 데이터 유출', cls: 'warning', delay: 500, stage: true },
+    { text: '  [+] 학생_성적_2025.xlsx', cls: 'danger', delay: 250 },
+    { text: '  [+] 생활기록부_3학년.hwp', cls: 'danger', delay: 250 },
+    { text: '  [+] 교원_인사기록.pdf', cls: 'danger', delay: 250 },
+    { text: '  [+] 학부모_연락처.csv', cls: 'danger', delay: 250 },
+    { text: '  [+] 건강검진_결과.xlsx', cls: 'danger', delay: 250 },
+    { text: '', cls: '', delay: 150 },
+    { text: 'progress', cls: 'progress', delay: 1500 },
+    { text: '', cls: '', delay: 150 },
+    { text: '  [+] 2,847개 파일 (4.7GB) 전송 완료 ✓', cls: 'danger', delay: 500 },
+    { text: '', cls: '', delay: 200 },
+    { text: '▶ STAGE 6: 랜섬웨어 배포', cls: 'danger', delay: 600, stage: true },
+    { text: '  [*] AES-256 암호화 중...', cls: 'danger', delay: 400 },
+    { text: '  [████████████████] 100%', cls: 'danger', delay: 800 },
+    { text: '', cls: '', delay: 300 },
+    { text: '🔒 ALL FILES ENCRYPTED', cls: 'danger', delay: 800 },
+  ];
+
+  for (const line of lines) {
+    if (line.cls === 'progress') {
+      const container = document.createElement('div');
+      container.className = 'progress-container';
+      container.innerHTML = '<div class="progress-bar" id="exfil-bar"></div>';
+      term.appendChild(container);
+      const bar = document.getElementById('exfil-bar');
+      for (let i = 0; i <= 100; i += 3) {
+        bar.style.width = Math.min(i, 100) + '%';
+        await sleep(25);
+      }
+      bar.style.width = '100%';
+    } else {
+      const div = document.createElement('div');
+      div.className = 'line ' + line.cls;
+      if (line.stage) div.classList.add('stage-header');
+      div.textContent = line.text;
+      term.appendChild(div);
+    }
+    term.scrollTop = term.scrollHeight;
+    await sleep(line.delay);
+  }
+
+  if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 200]);
+  await sleep(1200);
+  flash();
+  startDataPhase();
+}
+
+// === PHASE 2: DATA PANELS ===
+function startDataPhase() {
+  currentPhase = 2;
+  updatePhaseDots(2);
+  document.getElementById('phase-hack').style.display = 'none';
+  document.getElementById('phase-data').style.display = 'flex';
+
+  const keylogs = [
+    '09:15 neis.go.kr → ID: kimteacher PW: ****1234',
+    '09:16 school.jbe.go.kr → 로그인 시도',
+    '09:18 [HWP] 3학년 2반 생활기록부 작성',
+    '09:22 학부모 상담 일지 검색',
+    '09:25 [Excel] 학생_성적_입력.xlsx 편집',
+    '09:30 mail.google.com → 비밀번호 입력',
+    '09:32 [메모장] 학생 상담 기록 작성',
+    '09:35 eduro.go.kr → 건강상태 자가진단',
+    '09:38 banking.nonghyup.com → 계좌 로그인',
+    '09:40 [HWP] 교육과정_운영계획서 작성',
+    '09:43 kftc.or.kr → 인증서 로그인',
+    '09:45 [Excel] 방과후_수강신청_명단',
+    '09:48 정부24 → 공인인증서 사용',
+    '09:51 naver.com → 네이버 로그인',
+    '09:55 [HWP] 학교폭력_사안보고서 작성',
+  ];
+
+  const files = [
+    '📄 학생성적/1학년_중간고사.xlsx (2.3MB)',
+    '📄 생활기록부/3-1반.hwp (1.8MB)',
+    '📄 인사기록/경력증명서.pdf (540KB)',
+    '📄 학부모연락처_전체.csv (380KB)',
+    '📄 상담일지/2025_1학기.docx (890KB)',
+    '📄 NEIS_Data/학생건강기록.xlsx (4.2MB)',
+    '📄 교육과정/수업시수배당표.xlsx (1.1MB)',
+    '📁 학교폭력/사안처리대장 (12 files)',
+    '📄 세금/원천징수영수증.pdf (230KB)',
+    '📄 방과후/수강생_개인정보.xlsx (670KB)',
+    '📁 학교행사 사진 (347 photos)',
+    '📄 Wee클래스/심리검사결과.xlsx (1.5MB)',
+    '📄 NEIS/공인인증서.pfx (4KB) ⚠️',
+  ];
+
+  const creds = [
+    '🔑 NEIS → kimteacher / qwer1234!',
+    '🔑 학교 WiFi → SchoolAdmin / school2025#',
+    '🔑 Gmail → kim.teacher@gmail.com / Passw0rd!',
+    '🔑 Naver → 김선생_고등 / naver1234',
+    '🔑 교무업무 → admin_kim / admin123!',
+    '🔑 에듀넷 → T-kimhs / edunet2024',
+    '🔑 정부24 → 공인인증서 비밀번호 포함',
+    '🔑 농협뱅킹 → 계좌번호 + 이체비밀번호',
+    '🔑 학교 NAS → teacher_share / NAS1234',
+    '🔑 EBS → kimteacher_ebs / ebs2025!',
+  ];
+
+  const browser = [
+    '🌐 09:10 neis.go.kr - 나이스',
+    '🌐 09:12 school.jbe.go.kr - 학교알리미',
+    '🌐 09:15 eduro.go.kr - 건강자가진단',
+    '🌐 09:18 kftc.or.kr - 금융결제원',
+    '🌐 09:22 banking.nonghyup.com - NH뱅킹',
+    '🌐 09:25 hometax.go.kr - 홈택스',
+    '🌐 09:30 gov.kr - 정부24',
+    '🌐 09:33 mail.google.com - Gmail',
+    '🌐 09:35 cafe.naver.com - 교사 커뮤니티',
+    '🌐 09:40 youtube.com - 수업자료',
+    '🌐 09:42 coupang.com - 교실 물품',
+    '🌐 쿠키/세션 토큰 58개 수집 완료',
+    '🌐 자동저장 비밀번호 23개 복호화 완료',
+  ];
+
+  fillPanel('dp-0', keylogs, 180, 0);
+  fillPanel('dp-1', files, 220, 1);
+  fillPanel('dp-2', creds, 260, 2);
+  fillPanel('dp-3', browser, 200, 3);
+
+  phaseTimeout = setTimeout(() => {
+    flash();
+    startRansomPhase();
+  }, 8000);
+}
+
+let panelCounts = [0, 0, 0, 0];
+function fillPanel(panelId, items, interval, tabIdx) {
+  const panel = document.getElementById(panelId);
+  items.forEach((item, i) => {
+    setTimeout(() => {
+      const div = document.createElement('div');
+      div.className = 'data-row';
+      div.textContent = item;
+      div.style.animationDelay = (i * 0.03) + 's';
+      panel.appendChild(div);
+      // Update count badge
+      panelCounts[tabIdx]++;
+      document.getElementById('count-' + tabIdx).textContent = panelCounts[tabIdx];
+      // Auto-scroll if active
+      if (activeDataTab === tabIdx) {
+        panel.scrollTop = panel.scrollHeight;
+      }
+    }, i * interval);
+  });
+}
+
+// === PHASE 3: RANSOMWARE ===
+function startRansomPhase() {
+  currentPhase = 3;
+  updatePhaseDots(3);
+  document.getElementById('phase-data').style.display = 'none';
+  const ransom = document.getElementById('phase-ransom');
+  ransom.style.display = 'flex';
+
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
+
+  let secs = 259199;
+  const cd = document.getElementById('countdown');
+  const cdInterval = setInterval(() => {
+    secs--;
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    cd.textContent = `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }, 1000);
+
+  phaseTimeout = setTimeout(() => {
+    clearInterval(cdInterval);
+    flash();
+    startRevealPhase();
+  }, 8000);
+}
+
+// === PHASE 4: REVEAL ===
+function startRevealPhase() {
+  currentPhase = 4;
+  updatePhaseDots(4);
+  document.getElementById('phase-ransom').style.display = 'none';
+  document.getElementById('phase-reveal').style.display = 'flex';
+  document.getElementById('nav-btn').style.display = 'none';
+  document.getElementById('matrix-canvas').style.opacity = '0.02';
+
+  if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
+}
+</script>
+</body>
+</html>
