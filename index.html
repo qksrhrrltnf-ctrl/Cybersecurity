@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🔓 비밀번호 보안 체험 - 정보보안 교육</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e17;
+    --panel: #111827;
+    --border: #1e293b;
+    --green: #00ff88;
+    --red: #ff3b5c;
+    --orange: #ff9f1c;
+    --yellow: #ffd60a;
+    --blue: #00b4d8;
+    --text: #e2e8f0;
+    --dim: #64748b;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans KR', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Matrix rain background */
+  .matrix-bg {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 0;
+    opacity: 0.06;
+    pointer-events: none;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 30px 20px;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  .header-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.05); }
+  }
+
+  .header h1 {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 28px;
+    color: var(--green);
+    letter-spacing: 2px;
+    text-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+    margin-bottom: 8px;
+  }
+
+  .header p {
+    color: var(--dim);
+    font-size: 14px;
+  }
+
+  /* Input Section */
+  .input-section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .input-section::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--green), transparent);
+    animation: scanline 3s linear infinite;
+  }
+
+  @keyframes scanline {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  .input-label {
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--green);
+    font-size: 13px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .input-label .cursor {
+    display: inline-block;
+    width: 8px;
+    height: 16px;
+    background: var(--green);
+    animation: blink 1s step-end infinite;
+  }
+
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  .password-wrapper {
+    position: relative;
+    display: flex;
+    gap: 10px;
+  }
+
+  .password-input {
+    flex: 1;
+    background: #0d1117;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 22px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.3s;
+    letter-spacing: 2px;
+  }
+
+  .password-input:focus {
+    border-color: var(--green);
+    box-shadow: 0 0 15px rgba(0, 255, 136, 0.15);
+  }
+
+  .password-input::placeholder {
+    color: #334155;
+    letter-spacing: 0;
+    font-size: 16px;
+  }
+
+  .toggle-vis {
+    background: #1e293b;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--dim);
+    font-size: 20px;
+    width: 50px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .toggle-vis:hover {
+    color: var(--green);
+    border-color: var(--green);
+  }
+
+  .disclaimer {
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--dim);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Results Section */
+  .results {
+    display: none;
+    animation: fadeIn 0.5s ease;
+  }
+
+  .results.active { display: block; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Crack Time - Big Display */
+  .crack-display {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    text-align: center;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .crack-display.danger { border-color: var(--red); }
+  .crack-display.warning { border-color: var(--orange); }
+  .crack-display.good { border-color: var(--yellow); }
+  .crack-display.strong { border-color: var(--green); }
+
+  .crack-display.danger .glow { background: radial-gradient(ellipse at center, rgba(255,59,92,0.08) 0%, transparent 70%); }
+  .crack-display.warning .glow { background: radial-gradient(ellipse at center, rgba(255,159,28,0.08) 0%, transparent 70%); }
+  .crack-display.good .glow { background: radial-gradient(ellipse at center, rgba(255,214,10,0.08) 0%, transparent 70%); }
+  .crack-display.strong .glow { background: radial-gradient(ellipse at center, rgba(0,255,136,0.08) 0%, transparent 70%); }
+
+  .glow {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+  }
+
+  .crack-label {
+    font-size: 13px;
+    color: var(--dim);
+    margin-bottom: 8px;
+    font-family: 'Share Tech Mono', monospace;
+  }
+
+  .crack-time {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 42px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    position: relative;
+  }
+
+  .crack-display.danger .crack-time { color: var(--red); text-shadow: 0 0 30px rgba(255,59,92,0.4); }
+  .crack-display.warning .crack-time { color: var(--orange); text-shadow: 0 0 30px rgba(255,159,28,0.4); }
+  .crack-display.good .crack-time { color: var(--yellow); text-shadow: 0 0 30px rgba(255,214,10,0.4); }
+  .crack-display.strong .crack-time { color: var(--green); text-shadow: 0 0 30px rgba(0,255,136,0.4); }
+
+  .crack-subtitle {
+    font-size: 14px;
+    color: var(--dim);
+  }
+
+  /* Strength Bar */
+  .strength-bar-container {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .strength-bar-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    font-size: 13px;
+  }
+
+  .strength-bar-label span:first-child { color: var(--dim); }
+
+  .strength-bar {
+    height: 8px;
+    background: #1e293b;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+
+  .strength-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1), background 0.3s;
+  }
+
+  /* Analysis Grid */
+  .analysis-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  @media (max-width: 600px) {
+    .analysis-grid { grid-template-columns: 1fr; }
+    .crack-time { font-size: 28px; }
+  }
+
+  .analysis-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .analysis-card h3 {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--dim);
+    margin-bottom: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .check-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: 14px;
+  }
+
+  .check-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  .check-icon.pass { background: rgba(0,255,136,0.15); color: var(--green); }
+  .check-icon.fail { background: rgba(255,59,92,0.15); color: var(--red); }
+
+  /* Attack Simulation */
+  .attack-sim {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .attack-sim h3 {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--dim);
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .attack-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #1a2332;
+  }
+
+  .attack-row:last-child { border-bottom: none; }
+
+  .attack-name {
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .attack-name .icon { font-size: 16px; }
+
+  .attack-time {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 14px;
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
+
+  .attack-time.instant { background: rgba(255,59,92,0.15); color: var(--red); }
+  .attack-time.fast { background: rgba(255,159,28,0.15); color: var(--orange); }
+  .attack-time.medium { background: rgba(255,214,10,0.15); color: var(--yellow); }
+  .attack-time.slow { background: rgba(0,255,136,0.15); color: var(--green); }
+
+  /* Common Passwords Warning */
+  .common-warning {
+    background: rgba(255, 59, 92, 0.08);
+    border: 1px solid rgba(255, 59, 92, 0.3);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+    display: none;
+    animation: shake 0.5s ease;
+  }
+
+  .common-warning.active { display: flex; gap: 14px; align-items: flex-start; }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-8px); }
+    40% { transform: translateX(8px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+  }
+
+  .common-warning .warn-icon { font-size: 28px; flex-shrink: 0; }
+  .common-warning h4 { color: var(--red); font-size: 15px; margin-bottom: 4px; }
+  .common-warning p { color: var(--dim); font-size: 13px; line-height: 1.6; }
+
+  /* Tips Section */
+  .tips {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .tips h3 {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--green);
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .tip-item {
+    display: flex;
+    gap: 12px;
+    padding: 10px 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text);
+  }
+
+  .tip-item .num {
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--green);
+    font-size: 13px;
+    flex-shrink: 0;
+    opacity: 0.6;
+  }
+
+  /* Preset Buttons */
+  .presets {
+    margin-bottom: 24px;
+  }
+
+  .presets-label {
+    font-size: 12px;
+    color: var(--dim);
+    margin-bottom: 10px;
+    font-family: 'Share Tech Mono', monospace;
+  }
+
+  .preset-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .preset-btn {
+    background: #1e293b;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Noto Sans KR', sans-serif;
+  }
+
+  .preset-btn:hover {
+    border-color: var(--green);
+    color: var(--green);
+    background: rgba(0, 255, 136, 0.05);
+  }
+
+  /* Hacking Animation Overlay */
+  .hack-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(10, 14, 23, 0.95);
+    z-index: 100;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+  }
+
+  .hack-overlay.active { display: flex; }
+
+  .hack-text {
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--green);
+    font-size: 18px;
+    text-align: center;
+    line-height: 2;
+  }
+
+  .hack-text .trying {
+    color: var(--red);
+    font-size: 28px;
+    display: block;
+    margin: 16px 0;
+    min-height: 40px;
+  }
+
+  .hack-counter {
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--dim);
+    font-size: 14px;
+    margin-top: 16px;
+  }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    padding: 20px;
+    color: var(--dim);
+    font-size: 11px;
+    border-top: 1px solid var(--border);
+    margin-top: 20px;
+  }
+
+  .footer a { color: var(--green); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<canvas class="matrix-bg" id="matrix"></canvas>
+
+<div class="hack-overlay" id="hackOverlay">
+  <div class="hack-text">
+    ⚡ 비밀번호 크래킹 시뮬레이션 중...
+    <span class="trying" id="hackTrying"></span>
+  </div>
+  <div class="hack-counter" id="hackCounter"></div>
+</div>
+
+<div class="container">
+  <div class="header">
+    <div class="header-icon">🔐</div>
+    <h1>PASSWORD SECURITY LAB</h1>
+    <p>당신의 비밀번호는 해커에게 얼마나 버틸 수 있을까요?</p>
+  </div>
+
+  <div class="input-section">
+    <div class="input-label">
+      <span class="cursor"></span>
+      테스트할 비밀번호를 입력하세요 (서버 전송 없음, 100% 로컬 분석)
+    </div>
+    <div class="password-wrapper">
+      <input type="password" class="password-input" id="pwInput" placeholder="비밀번호를 입력하세요..." autocomplete="off">
+      <button class="toggle-vis" id="toggleVis" title="비밀번호 보기">👁</button>
+    </div>
+    <div class="disclaimer">🔒 입력한 비밀번호는 이 브라우저 안에서만 분석되며 어디에도 전송되지 않습니다.</div>
+  </div>
+
+  <div class="presets">
+    <div class="presets-label">⚡ 자주 쓰이는 취약 비밀번호 예시 (클릭해서 테스트)</div>
+    <div class="preset-btns">
+      <button class="preset-btn" onclick="testPreset('1234')">1234</button>
+      <button class="preset-btn" onclick="testPreset('password')">password</button>
+      <button class="preset-btn" onclick="testPreset('qwer1234')">qwer1234</button>
+      <button class="preset-btn" onclick="testPreset('school2024!')">school2024!</button>
+      <button class="preset-btn" onclick="testPreset('Iloveyou1!')">Iloveyou1!</button>
+      <button class="preset-btn" onclick="testPreset('gY#9kL$2mW!xQ7')">강력한 비밀번호</button>
+    </div>
+  </div>
+
+  <div class="results" id="results">
+    <!-- Common Password Warning -->
+    <div class="common-warning" id="commonWarning">
+      <div class="warn-icon">🚨</div>
+      <div>
+        <h4>이 비밀번호는 해커의 사전(Dictionary)에 등록되어 있습니다!</h4>
+        <p id="commonWarningText">전 세계에서 가장 많이 사용되는 비밀번호 목록에 포함되어 있어, 해킹 시도 시 가장 먼저 테스트됩니다. 즉시 변경이 필요합니다.</p>
+      </div>
+    </div>
+
+    <!-- Crack Time Display -->
+    <div class="crack-display" id="crackDisplay">
+      <div class="glow"></div>
+      <div class="crack-label">예상 크래킹 소요 시간</div>
+      <div class="crack-time" id="crackTime">-</div>
+      <div class="crack-subtitle" id="crackSubtitle"></div>
+    </div>
+
+    <!-- Strength Bar -->
+    <div class="strength-bar-container">
+      <div class="strength-bar-label">
+        <span>보안 강도</span>
+        <span id="strengthLabel" style="font-weight:700;">-</span>
+      </div>
+      <div class="strength-bar">
+        <div class="strength-fill" id="strengthFill" style="width:0%"></div>
+      </div>
+    </div>
+
+    <!-- Analysis Grid -->
+    <div class="analysis-grid">
+      <div class="analysis-card">
+        <h3>📋 구성 요소 분석</h3>
+        <div id="compositionChecks"></div>
+      </div>
+      <div class="analysis-card">
+        <h3>⚠️ 취약점 탐지</h3>
+        <div id="weaknessChecks"></div>
+      </div>
+    </div>
+
+    <!-- Attack Simulation -->
+    <div class="attack-sim">
+      <h3>🗡️ 공격 유형별 크래킹 시간</h3>
+      <div id="attackRows"></div>
+    </div>
+
+    <!-- Tips -->
+    <div class="tips">
+      <h3>🛡️ 강력한 비밀번호 만들기 TIP</h3>
+      <div class="tip-item"><span class="num">01</span><span>12자 이상, 영문 대소문자 + 숫자 + 특수문자 조합</span></div>
+      <div class="tip-item"><span class="num">02</span><span>사이트마다 다른 비밀번호 사용 → 비밀번호 관리자 앱 활용</span></div>
+      <div class="tip-item"><span class="num">03</span><span>개인정보(생일, 이름, 전화번호) 절대 포함 금지</span></div>
+      <div class="tip-item"><span class="num">04</span><span>"나만의 문장"을 활용: "우리학교급식맛있다!" → "Ur1Hg8$mIs1d@!"</span></div>
+      <div class="tip-item"><span class="num">05</span><span>2단계 인증(MFA) 반드시 활성화 — 비밀번호가 유출돼도 계정 보호 가능</span></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    🏫 정보보안 교육용 데모 | 비밀번호는 어디에도 저장·전송되지 않습니다
+  </div>
+</div>
+
+<script>
+// Matrix rain
+const canvas = document.getElementById('matrix');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+const chars = 'アイウエオカキクケコ0123456789ABCDEF';
+const fontSize = 14;
+const columns = canvas.width / fontSize;
+const drops = Array(Math.floor(columns)).fill(1);
+
+function drawMatrix() {
+  ctx.fillStyle = 'rgba(10, 14, 23, 0.05)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#00ff88';
+  ctx.font = fontSize + 'px monospace';
+  for (let i = 0; i < drops.length; i++) {
+    const text = chars[Math.floor(Math.random() * chars.length)];
+    ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+    if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+    drops[i]++;
+  }
+}
+setInterval(drawMatrix, 50);
+window.addEventListener('resize', () => { canvas.width = innerWidth; canvas.height = innerHeight; });
+
+// Common passwords list
+const commonPasswords = [
+  'password', '123456', '12345678', 'qwerty', 'abc123', '111111', 'password1',
+  'iloveyou', '1234', '1234567890', '123123', 'admin', 'letmein', 'welcome',
+  'monkey', 'dragon', 'login', 'master', 'hello', 'charlie', 'donald',
+  'qwer1234', 'school2024', 'school2024!', 'password!', '1q2w3e4r', 'sunshine',
+  'princess', 'football', 'shadow', 'superman', 'trustno1', 'baseball',
+  'qwerty123', 'iloveyou1!', 'p@ssw0rd', 'p@ssword', 'pass1234', 'test1234'
+];
+
+// Toggle visibility
+const pwInput = document.getElementById('pwInput');
+const toggleVis = document.getElementById('toggleVis');
+toggleVis.addEventListener('click', () => {
+  const isPass = pwInput.type === 'password';
+  pwInput.type = isPass ? 'text' : 'password';
+  toggleVis.textContent = isPass ? '🙈' : '👁';
+});
+
+function testPreset(pw) {
+  pwInput.value = pw;
+  pwInput.type = 'text';
+  toggleVis.textContent = '🙈';
+  analyze(pw);
+}
+
+// Debounce input
+let timer;
+pwInput.addEventListener('input', () => {
+  clearTimeout(timer);
+  timer = setTimeout(() => analyze(pwInput.value), 200);
+});
+
+function analyze(pw) {
+  const results = document.getElementById('results');
+  if (!pw) { results.classList.remove('active'); return; }
+  results.classList.add('active');
+
+  const length = pw.length;
+  const hasLower = /[a-z]/.test(pw);
+  const hasUpper = /[A-Z]/.test(pw);
+  const hasDigit = /[0-9]/.test(pw);
+  const hasSpecial = /[^a-zA-Z0-9]/.test(pw);
+  const hasKorean = /[가-힣]/.test(pw);
+
+  // Charset size
+  let charset = 0;
+  if (hasLower) charset += 26;
+  if (hasUpper) charset += 26;
+  if (hasDigit) charset += 10;
+  if (hasSpecial) charset += 33;
+  if (hasKorean) charset += 11172;
+
+  // Entropy
+  const entropy = length * Math.log2(charset || 1);
+
+  // Weaknesses
+  const isCommon = commonPasswords.includes(pw.toLowerCase());
+  const hasSequence = /(?:abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz|012|123|234|345|456|567|678|789|890|qwe|wer|ert|rty|tyu|yui|uio|iop)/i.test(pw);
+  const hasRepeat = /(.)\1{2,}/.test(pw);
+  const hasKeyboardPattern = /(?:qwert|asdf|zxcv|!@#\$|1qaz|2wsx)/i.test(pw);
+  const hasDatePattern = /(?:19|20)\d{2}/.test(pw);
+  const tooShort = length < 8;
+
+  // Penalty
+  let penaltyFactor = 1;
+  if (isCommon) penaltyFactor = 0;
+  if (hasSequence) penaltyFactor *= 0.3;
+  if (hasRepeat) penaltyFactor *= 0.5;
+  if (hasKeyboardPattern) penaltyFactor *= 0.2;
+  if (hasDatePattern) penaltyFactor *= 0.7;
+
+  // Crack time in seconds (10 billion guesses/sec for offline attack)
+  const guessesPerSec = 10_000_000_000;
+  let totalCombinations = Math.pow(charset || 1, length);
+  let crackSeconds = (totalCombinations / guessesPerSec) * penaltyFactor;
+
+  if (isCommon) crackSeconds = 0.001;
+
+  // Score 0-100
+  let score = Math.min(100, Math.max(0, entropy * penaltyFactor * 1.2));
+  if (isCommon) score = 2;
+  if (tooShort && score > 40) score = 40;
+
+  // Determine level
+  let level, levelColor, levelClass;
+  if (score < 20) { level = '매우 위험'; levelColor = 'var(--red)'; levelClass = 'danger'; }
+  else if (score < 45) { level = '위험'; levelColor = 'var(--orange)'; levelClass = 'warning'; }
+  else if (score < 70) { level = '보통'; levelColor = 'var(--yellow)'; levelClass = 'good'; }
+  else { level = '강력'; levelColor = 'var(--green)'; levelClass = 'strong'; }
+
+  // Common warning
+  const commonWarn = document.getElementById('commonWarning');
+  if (isCommon) {
+    commonWarn.classList.add('active');
+    document.getElementById('commonWarningText').textContent =
+      `"${pw}"은(는) 해커들의 비밀번호 사전(Dictionary)에 등록된 비밀번호입니다. 이런 비밀번호는 0.001초 이내에 뚫립니다.`;
+  } else {
+    commonWarn.classList.remove('active');
+  }
+
+  // Crack display
+  const crackDisplay = document.getElementById('crackDisplay');
+  crackDisplay.className = 'crack-display ' + levelClass;
+  document.getElementById('crackTime').textContent = formatTime(crackSeconds);
+  document.getElementById('crackSubtitle').textContent =
+    crackSeconds < 1 ? '⚡ 해커의 컴퓨터 앞에서 눈 깜짝할 사이에 뚫립니다' :
+    crackSeconds < 3600 ? '⏱️ 커피 한 잔 마시는 동안 뚫릴 수 있습니다' :
+    crackSeconds < 86400 * 365 ? '🕐 시간이 걸리지만 충분히 시도할 가치가 있습니다' :
+    '🏰 현재 기술로는 크래킹이 매우 어렵습니다';
+
+  // Strength bar
+  document.getElementById('strengthFill').style.width = score + '%';
+  document.getElementById('strengthFill').style.background =
+    `linear-gradient(90deg, ${score < 20 ? 'var(--red)' : score < 45 ? 'var(--orange)' : score < 70 ? 'var(--yellow)' : 'var(--green)'}, ${levelColor})`;
+  const strengthLabel = document.getElementById('strengthLabel');
+  strengthLabel.textContent = level + ` (${Math.round(score)}/100)`;
+  strengthLabel.style.color = levelColor;
+
+  // Composition checks
+  document.getElementById('compositionChecks').innerHTML = [
+    checkItem(length >= 8, `길이: ${length}자 ${length < 8 ? '(최소 8자 필요)' : length < 12 ? '(12자 이상 권장)' : '(충분)'}`),
+    checkItem(hasLower, '소문자 (a-z)'),
+    checkItem(hasUpper, '대문자 (A-Z)'),
+    checkItem(hasDigit, '숫자 (0-9)'),
+    checkItem(hasSpecial, '특수문자 (!@#$...)'),
+  ].join('');
+
+  // Weakness checks
+  document.getElementById('weaknessChecks').innerHTML = [
+    checkItem(!isCommon, isCommon ? '흔한 비밀번호 목록에 포함됨' : '사전 공격 목록에 미포함', true),
+    checkItem(!hasSequence, hasSequence ? '연속 문자열 감지 (abc, 123...)' : '연속 패턴 없음', true),
+    checkItem(!hasRepeat, hasRepeat ? '반복 문자 감지 (aaa, 111...)' : '반복 문자 없음', true),
+    checkItem(!hasKeyboardPattern, hasKeyboardPattern ? '키보드 패턴 감지 (qwerty...)' : '키보드 패턴 없음', true),
+    checkItem(!hasDatePattern, hasDatePattern ? '연도 패턴 감지 (2024...)' : '날짜 패턴 없음', true),
+  ].join('');
+
+  // Attack simulations
+  const attacks = [
+    { name: '사전 공격 (Dictionary)', icon: '📖', factor: isCommon ? 0 : 0.001, desc: '알려진 비밀번호 목록 대입' },
+    { name: '무차별 대입 (Brute Force)', icon: '🔨', factor: 1, desc: '모든 조합 시도' },
+    { name: '규칙 기반 공격 (Rule-based)', icon: '📐', factor: 0.1, desc: '패턴 + 변형 규칙 적용' },
+    { name: '레인보우 테이블', icon: '🌈', factor: 0.01, desc: '사전 계산된 해시 매칭' },
+  ];
+
+  document.getElementById('attackRows').innerHTML = attacks.map(a => {
+    let t = crackSeconds * a.factor;
+    if (isCommon && a.name.includes('사전')) t = 0.001;
+    let timeClass = t < 1 ? 'instant' : t < 3600 ? 'fast' : t < 86400*365 ? 'medium' : 'slow';
+    return `
+      <div class="attack-row">
+        <div class="attack-name"><span class="icon">${a.icon}</span> ${a.name}</div>
+        <div class="attack-time ${timeClass}">${formatTime(t)}</div>
+      </div>`;
+  }).join('');
+
+  // Run hack animation for weak passwords
+  if (score < 20 && !window._hackAnimRunning) {
+    runHackAnimation(pw);
+  }
+}
+
+function checkItem(pass, text, invert) {
+  return `<div class="check-item">
+    <div class="check-icon ${pass ? 'pass' : 'fail'}">${pass ? '✓' : '✗'}</div>
+    <span>${text}</span>
+  </div>`;
+}
+
+function formatTime(seconds) {
+  if (seconds < 0.01) return '즉시 크래킹';
+  if (seconds < 1) return '1초 미만';
+  if (seconds < 60) return Math.round(seconds) + '초';
+  if (seconds < 3600) return Math.round(seconds / 60) + '분';
+  if (seconds < 86400) return Math.round(seconds / 3600) + '시간';
+  if (seconds < 86400 * 30) return Math.round(seconds / 86400) + '일';
+  if (seconds < 86400 * 365) return Math.round(seconds / (86400 * 30)) + '개월';
+  if (seconds < 86400 * 365 * 1000) return Math.round(seconds / (86400 * 365)) + '년';
+  if (seconds < 86400 * 365 * 1e6) return Math.round(seconds / (86400 * 365 * 1000)) + '천 년';
+  if (seconds < 86400 * 365 * 1e9) return Math.round(seconds / (86400 * 365 * 1e6)) + '백만 년';
+  if (seconds < 86400 * 365 * 1e12) return Math.round(seconds / (86400 * 365 * 1e9)) + '십억 년';
+  return '우주 나이보다 오래';
+}
+
+// Hacking animation for dramatic effect
+function runHackAnimation(target) {
+  window._hackAnimRunning = true;
+  const overlay = document.getElementById('hackOverlay');
+  const trying = document.getElementById('hackTrying');
+  const counter = document.getElementById('hackCounter');
+  overlay.classList.add('active');
+
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789!@#$%';
+  let count = 0;
+  const maxAttempts = 60;
+
+  const interval = setInterval(() => {
+    count++;
+    let attempt = '';
+    for (let i = 0; i < target.length; i++) {
+      if (count > maxAttempts - 10 && i < Math.floor((count - (maxAttempts - 10)) / 1)) {
+        attempt += target[i];
+      } else {
+        attempt += chars[Math.floor(Math.random() * chars.length)];
+      }
+    }
+    trying.textContent = attempt;
+    counter.textContent = `시도 횟수: ${(count * 147283).toLocaleString()}회`;
+
+    if (count >= maxAttempts) {
+      clearInterval(interval);
+      trying.textContent = target;
+      trying.style.color = 'var(--red)';
+      counter.textContent = '🔓 비밀번호 크래킹 성공!';
+      setTimeout(() => {
+        overlay.classList.remove('active');
+        trying.style.color = '';
+        window._hackAnimRunning = false;
+      }, 1800);
+    }
+  }, 50);
+}
+</script>
+</body>
+</html>
