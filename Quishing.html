@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>큐싱(Quishing) 공격 시뮬레이션</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+KR:wght@400;500;700;900&family=Inter:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    background: #0a0a0a;
+    font-family: 'Noto Sans KR', sans-serif;
+    color: white;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+
+  /* ============================================
+     PHASE 0: INTRO
+  ============================================ */
+  #phase-intro {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at center, #111827 0%, #0a0a0a 70%);
+    z-index: 1000;
+    cursor: pointer;
+    padding: 24px;
+  }
+
+  .intro-qr {
+    position: relative;
+    width: 140px; height: 140px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .intro-qr .qr-icon {
+    font-size: 72px;
+    z-index: 2;
+    animation: float 3s ease-in-out infinite;
+    filter: drop-shadow(0 0 30px rgba(239, 68, 68, 0.4));
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-12px) rotate(2deg); }
+  }
+
+  .scan-line {
+    position: absolute;
+    width: 120px; height: 2px;
+    background: linear-gradient(90deg, transparent, #ef4444, transparent);
+    animation: scanMove 2s ease-in-out infinite;
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+    z-index: 3;
+  }
+
+  @keyframes scanMove {
+    0%, 100% { top: 15px; }
+    50% { top: 110px; }
+  }
+
+  .corner-bracket {
+    position: absolute;
+    width: 20px; height: 20px;
+    border-color: #ef4444;
+    border-style: solid;
+    border-width: 0;
+  }
+  .corner-bracket.tl { top: 0; left: 0; border-top-width: 2px; border-left-width: 2px; }
+  .corner-bracket.tr { top: 0; right: 0; border-top-width: 2px; border-right-width: 2px; }
+  .corner-bracket.bl { bottom: 0; left: 0; border-bottom-width: 2px; border-left-width: 2px; }
+  .corner-bracket.br { bottom: 0; right: 0; border-bottom-width: 2px; border-right-width: 2px; }
+
+  #phase-intro h1 {
+    font-size: 28px;
+    font-weight: 900;
+    margin-top: 28px;
+    background: linear-gradient(135deg, #ef4444 0%, #f97316 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.5px;
+    text-align: center;
+    line-height: 1.3;
+  }
+
+  #phase-intro .subtitle {
+    color: #9ca3af;
+    font-size: 14px;
+    margin-top: 10px;
+    text-align: center;
+  }
+
+  #phase-intro .start-hint {
+    color: #4b5563;
+    font-size: 13px;
+    margin-top: 36px;
+    animation: blink 1.5s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+
+  /* ============================================
+     PHASE 1: SCENARIO (Mobile: Tab layout)
+  ============================================ */
+  #phase-scenario {
+    display: none;
+    position: fixed; inset: 0;
+    z-index: 900;
+    flex-direction: column;
+  }
+
+  /* Tab switcher */
+  .tab-bar {
+    display: flex;
+    background: #161b22;
+    border-bottom: 1px solid #21262d;
+    flex-shrink: 0;
+  }
+
+  .tab-btn {
+    flex: 1;
+    padding: 12px 8px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Noto Sans KR', sans-serif;
+    position: relative;
+  }
+
+  .tab-btn.victim {
+    background: #0d1117;
+    color: #4ade80;
+  }
+  .tab-btn.victim.active {
+    background: #f8fafc;
+    color: #22c55e;
+  }
+  .tab-btn.victim.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: #22c55e;
+  }
+
+  .tab-btn.attacker {
+    background: #0d1117;
+    color: #f87171;
+  }
+  .tab-btn.attacker.active {
+    background: #0d1117;
+    color: #f85149;
+  }
+  .tab-btn.attacker.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: #f85149;
+  }
+
+  /* Notification badge on tab */
+  .tab-badge {
+    display: inline-block;
+    background: #ef4444;
+    color: white;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    margin-left: 4px;
+    animation: badgePulse 1s ease-in-out infinite;
+    display: none;
+  }
+  .tab-badge.show { display: inline-block; }
+
+  @keyframes badgePulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+  }
+
+  /* Tab content areas */
+  .tab-content {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .tab-panel {
+    position: absolute; inset: 0;
+    display: none;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tab-panel.active { display: block; }
+
+  /* --- Victim panel --- */
+  .victim-panel {
+    background: #f8fafc;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 16px;
+    min-height: 100%;
+    position: relative;
+  }
+
+  .victim-panel::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: 
+      linear-gradient(90deg, transparent 59px, #e5e7eb 59px, #e5e7eb 60px, transparent 60px),
+      linear-gradient(0deg, transparent 59px, #e5e7eb 59px, #e5e7eb 60px, transparent 60px);
+    background-size: 60px 60px;
+    opacity: 0.2;
+    pointer-events: none;
+  }
+
+  .phone-frame {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: 320px;
+    background: #1a1a1a;
+    border-radius: 28px;
+    padding: 8px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+  }
+
+  .phone-notch {
+    width: 80px;
+    height: 20px;
+    background: #1a1a1a;
+    border-radius: 0 0 12px 12px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 3;
+    margin-top: -8px;
+  }
+
+  .phone-screen {
+    background: white;
+    border-radius: 20px;
+    overflow: hidden;
+    min-height: 420px;
+  }
+
+  .fake-page {
+    opacity: 0;
+    transition: opacity 0.5s;
+  }
+  .fake-page.visible { opacity: 1; }
+
+  .fake-browser-bar {
+    background: #f1f3f4;
+    padding: 7px 10px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+  }
+
+  .fake-url-bar {
+    flex: 1;
+    background: white;
+    border-radius: 10px;
+    padding: 5px 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    color: #333;
+  }
+
+  .lock-icon { color: #34a853; font-size: 9px; }
+  .fake-url { color: #5f6368; }
+  .fake-url .domain { color: #202124; font-weight: 500; }
+
+  .fake-login-body {
+    padding: 20px 16px;
+    text-align: center;
+  }
+
+  .fake-logo {
+    width: 48px; height: 48px;
+    background: linear-gradient(135deg, #1a5276, #2e86c1);
+    border-radius: 10px;
+    margin: 0 auto 12px;
+    display: flex; align-items: center; justify-content: center;
+    color: white;
+    font-size: 20px;
+    font-weight: 900;
+  }
+
+  .fake-login-body h2 {
+    color: #1a1a1a;
+    font-size: 15px;
+    margin-bottom: 4px;
+  }
+
+  .fake-login-body .sub {
+    color: #888;
+    font-size: 11px;
+    margin-bottom: 16px;
+  }
+
+  .fake-input {
+    display: block;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-family: 'Noto Sans KR', sans-serif;
+    color: #333;
+    background: white;
+    transition: border-color 0.3s;
+    outline: none;
+  }
+
+  .fake-input.typing {
+    border-color: #2e86c1;
+    box-shadow: 0 0 0 3px rgba(46,134,193,0.1);
+  }
+
+  .fake-btn {
+    display: block;
+    width: 100%;
+    padding: 11px;
+    background: linear-gradient(135deg, #1a5276, #2e86c1);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 4px;
+    cursor: default;
+    font-family: 'Noto Sans KR', sans-serif;
+  }
+
+  .fake-links {
+    margin-top: 14px;
+    font-size: 10px;
+    color: #2e86c1;
+  }
+
+  .red-overlay {
+    position: absolute; inset: 0;
+    background: rgba(239, 68, 68, 0.12);
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.5s;
+    pointer-events: none;
+  }
+  .red-overlay.active { opacity: 1; }
+
+  /* --- Attacker panel --- */
+  .attacker-panel {
+    background: #0d1117;
+    min-height: 100%;
+  }
+
+  .attacker-header {
+    background: #161b22;
+    padding: 10px 14px;
+    border-bottom: 1px solid #21262d;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+
+  .attacker-header .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot-r { background: #ff5f56; }
+  .dot-y { background: #ffbd2e; }
+  .dot-g { background: #27c93f; }
+
+  .attacker-header span {
+    color: #8b949e;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    margin-left: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .attacker-body {
+    padding: 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    line-height: 1.7;
+    padding-bottom: 80px;
+  }
+
+  .atk-line { opacity: 0; animation: fadeSlide 0.2s forwards; word-break: break-all; }
+  .atk-line.cmd { color: #58a6ff; }
+  .atk-line.ok { color: #3fb950; }
+  .atk-line.warn { color: #d29922; }
+  .atk-line.crit { color: #f85149; }
+  .atk-line.data { color: #79c0ff; }
+  .atk-line.dim { color: #484f58; }
+
+  @keyframes fadeSlide {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .captured-box {
+    background: rgba(248, 81, 73, 0.1);
+    border: 1px solid rgba(248, 81, 73, 0.3);
+    border-radius: 6px;
+    padding: 10px;
+    margin: 6px 0;
+    font-size: 11px;
+    word-break: break-all;
+  }
+
+  .captured-box .label {
+    color: #f85149;
+    font-size: 10px;
+    font-weight: bold;
+    margin-bottom: 4px;
+  }
+
+  /* ============================================
+     PHASE 2: ATTACK EXPANSION (Mobile: scroll)
+  ============================================ */
+  #phase-expand {
+    display: none;
+    position: fixed; inset: 0;
+    background: #0d1117;
+    z-index: 800;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px;
+    padding-bottom: 80px;
+  }
+
+  .expand-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .expand-panel {
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-radius: 10px;
+    padding: 14px;
+    overflow: hidden;
+    opacity: 0;
+    transform: scale(0.97);
+    animation: panelIn 0.4s forwards;
+  }
+
+  @keyframes panelIn {
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .expand-panel h3 {
+    font-size: 12px;
+    color: #f85149;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #21262d;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .expand-panel .content {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    line-height: 1.6;
+    color: #8b949e;
+  }
+
+  .expand-panel .content .row {
+    padding: 2px 0;
+    border-bottom: 1px solid #0d1117;
+    opacity: 0;
+    animation: fadeSlide 0.15s forwards;
+    word-break: break-all;
+  }
+
+  .expand-panel .content .row.highlight { color: #f85149; }
+  .expand-panel .content .row.info { color: #79c0ff; }
+  .expand-panel .content .row.warn { color: #d29922; }
+
+  /* ============================================
+     PHASE 3: REAL CASES (Mobile: vertical)
+  ============================================ */
+  #phase-cases {
+    display: none;
+    position: fixed; inset: 0;
+    background: #0a0a0a;
+    z-index: 700;
+    flex-direction: column;
+    align-items: center;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 24px 16px;
+    padding-bottom: 80px;
+  }
+
+  .cases-title {
+    font-size: 22px;
+    font-weight: 900;
+    color: #ef4444;
+    margin-bottom: 20px;
+    text-shadow: 0 0 20px rgba(239,68,68,0.3);
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .case-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    max-width: 500px;
+  }
+
+  .case-card {
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-radius: 12px;
+    padding: 20px 18px;
+    opacity: 0;
+    transform: translateY(20px);
+    animation: cardUp 0.5s forwards;
+  }
+
+  @keyframes cardUp {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .case-card .year {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: #ef4444;
+    margin-bottom: 6px;
+  }
+
+  .case-card h3 {
+    font-size: 15px;
+    color: #e6edf3;
+    margin-bottom: 8px;
+    line-height: 1.4;
+  }
+
+  .case-card p {
+    font-size: 12px;
+    color: #8b949e;
+    line-height: 1.5;
+  }
+
+  .case-card .damage {
+    margin-top: 10px;
+    padding: 7px 10px;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 6px;
+    font-size: 12px;
+    color: #f85149;
+    font-weight: 700;
+  }
+
+  /* ============================================
+     PHASE 4: REVEAL (Mobile: compact)
+  ============================================ */
+  #phase-reveal {
+    display: none;
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, #111827 0%, #0a0a0a 70%);
+    z-index: 600;
+    flex-direction: column;
+    align-items: center;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 32px 16px;
+    padding-bottom: 40px;
+  }
+
+  .reveal-shield {
+    font-size: 64px;
+    animation: bounceIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    flex-shrink: 0;
+  }
+
+  @keyframes bounceIn {
+    0% { transform: scale(0); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  #phase-reveal h1 {
+    font-size: 24px;
+    font-weight: 900;
+    margin: 16px 0 6px;
+    background: linear-gradient(135deg, #22c55e, #3b82f6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-align: center;
+    line-height: 1.3;
+  }
+
+  #phase-reveal h2 {
+    font-size: 14px;
+    color: #8b949e;
+    font-weight: 400;
+    margin-bottom: 28px;
+    text-align: center;
+  }
+
+  .defense-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    max-width: 400px;
+  }
+
+  .defense-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid #21262d;
+    border-radius: 12px;
+    padding: 20px 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    opacity: 0;
+    transform: translateY(15px);
+    animation: cardUp 0.5s forwards;
+  }
+
+  .defense-card .icon { font-size: 28px; flex-shrink: 0; line-height: 1; }
+  .defense-card .card-text { flex: 1; }
+  .defense-card h3 { font-size: 15px; color: #e6edf3; margin-bottom: 4px; }
+  .defense-card p { font-size: 12px; color: #8b949e; line-height: 1.5; }
+
+  /* ============================================
+     NAVIGATION
+  ============================================ */
+  .nav-btn {
+    position: fixed;
+    bottom: 0;
+    left: 0; right: 0;
+    z-index: 10000;
+    background: rgba(22, 27, 34, 0.95);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: none;
+    border-top: 1px solid #21262d;
+    color: #e6edf3;
+    padding: 16px;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    display: none;
+    text-align: center;
+    transition: background 0.2s;
+  }
+  .nav-btn:active { background: rgba(255,255,255,0.1); }
+
+  .nav-btn .arrow {
+    display: inline-block;
+    margin-left: 6px;
+    transition: transform 0.2s;
+  }
+
+  /* Flash */
+  .flash {
+    position: fixed; inset: 0;
+    background: white;
+    z-index: 99999;
+    animation: flashA 0.25s forwards;
+    pointer-events: none;
+  }
+  @keyframes flashA {
+    0% { opacity: 0.6; }
+    100% { opacity: 0; }
+  }
+
+  /* Safe area for notched phones */
+  @supports (padding-top: env(safe-area-inset-top)) {
+    .tab-bar { padding-top: env(safe-area-inset-top); }
+    .nav-btn { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+  }
+</style>
+</head>
+<body>
+
+<!-- PHASE 0: INTRO -->
+<div id="phase-intro" onclick="startDemo()">
+  <div class="intro-qr">
+    <div class="corner-bracket tl"></div>
+    <div class="corner-bracket tr"></div>
+    <div class="corner-bracket bl"></div>
+    <div class="corner-bracket br"></div>
+    <div class="scan-line"></div>
+    <div class="qr-icon">📱</div>
+  </div>
+  <h1>큐싱(Quishing)<br>공격 시뮬레이션</h1>
+  <div class="subtitle">QR코드 하나로 모든 정보가 탈취됩니다</div>
+  <div class="start-hint">탭하여 시작</div>
+</div>
+
+<!-- PHASE 1: SCENARIO (Tab layout) -->
+<div id="phase-scenario">
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <button class="tab-btn victim active" onclick="switchTab('victim')">
+      👤 피해자 화면
+    </button>
+    <button class="tab-btn attacker" onclick="switchTab('attacker')">
+      💀 해커 서버 <span class="tab-badge" id="atk-badge">NEW</span>
+    </button>
+  </div>
+
+  <!-- Tab content -->
+  <div class="tab-content">
+    <!-- Victim tab -->
+    <div class="tab-panel active" id="panel-victim">
+      <div class="victim-panel">
+        <div class="red-overlay" id="red-overlay"></div>
+        <div class="phone-frame">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <!-- Camera view -->
+            <div class="fake-page" id="camera-view" style="background:#000; min-height:420px; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+              <div style="font-size:48px; margin-bottom:8px;">📷</div>
+              <div style="color:#fff; font-size:14px; font-weight:700;">카메라</div>
+              <div style="color:#aaa; font-size:11px; margin-top:6px;">QR코드를 인식하는 중...</div>
+              <div style="margin-top:16px; padding:6px 14px; background:rgba(255,255,255,0.15); border-radius:16px; color:#fff; font-size:11px;" id="detected-url"></div>
+            </div>
+
+            <!-- Fake login -->
+            <div class="fake-page" id="login-view" style="display:none;">
+              <div class="fake-browser-bar">
+                <div style="display:flex; gap:3px;">
+                  <div style="width:5px;height:5px;border-radius:50%;background:#ccc;"></div>
+                  <div style="width:5px;height:5px;border-radius:50%;background:#ccc;"></div>
+                  <div style="width:5px;height:5px;border-radius:50%;background:#ccc;"></div>
+                </div>
+                <div class="fake-url-bar">
+                  <span class="lock-icon">🔒</span>
+                  <span class="fake-url"><span class="domain">school-survey</span>.kr-auth.com</span>
+                </div>
+              </div>
+              <div class="fake-login-body">
+                <div class="fake-logo">S</div>
+                <h2>교직원 인증</h2>
+                <div class="sub">급식 만족도 조사 참여를 위해 로그인해주세요</div>
+                <input class="fake-input" id="fake-id" placeholder="나이스(NEIS) 아이디" readonly>
+                <input class="fake-input" id="fake-pw" type="password" placeholder="비밀번호" readonly>
+                <button class="fake-btn" id="fake-submit">로그인</button>
+                <div class="fake-links">아이디 찾기 | 비밀번호 재설정</div>
+              </div>
+            </div>
+
+            <!-- Loading -->
+            <div class="fake-page" id="loading-view" style="display:none; background:#f8fafc; min-height:420px; display:none; flex-direction:column; align-items:center; justify-content:center;">
+              <div style="width:32px;height:32px;border:3px solid #e5e7eb;border-top-color:#2e86c1;border-radius:50%;animation:spin 1s linear infinite;"></div>
+              <div style="margin-top:12px; color:#666; font-size:13px;">설문 페이지 로딩 중...</div>
+              <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Attacker tab -->
+    <div class="tab-panel" id="panel-attacker">
+      <div class="attacker-panel">
+        <div class="attacker-header">
+          <div class="dot dot-r"></div>
+          <div class="dot dot-y"></div>
+          <div class="dot dot-g"></div>
+          <span>root@phishing-server:~#</span>
+        </div>
+        <div class="attacker-body" id="attacker-terminal"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PHASE 2: ATTACK EXPANSION -->
+<div id="phase-expand">
+  <div class="expand-grid">
+    <div class="expand-panel" style="animation-delay:0s;">
+      <h3>🔑 탈취된 계정</h3>
+      <div class="content" id="panel-creds"></div>
+    </div>
+    <div class="expand-panel" style="animation-delay:0.1s;">
+      <h3>📱 디바이스 정보</h3>
+      <div class="content" id="panel-device"></div>
+    </div>
+    <div class="expand-panel" style="animation-delay:0.15s;">
+      <h3>📍 위치 추적</h3>
+      <div class="content" id="panel-location"></div>
+    </div>
+    <div class="expand-panel" style="animation-delay:0.2s;">
+      <h3>📋 추가 수집 정보</h3>
+      <div class="content" id="panel-extra"></div>
+    </div>
+    <div class="expand-panel" style="animation-delay:0.25s;">
+      <h3>🌊 2차 공격 (Lateral Movement)</h3>
+      <div class="content" id="panel-lateral"></div>
+    </div>
+  </div>
+</div>
+
+<!-- PHASE 3: REAL CASES -->
+<div id="phase-cases">
+  <div class="cases-title">📰 실제 큐싱 피해 사례</div>
+  <div class="case-cards">
+    <div class="case-card" style="animation-delay:0.15s;">
+      <div class="year">2023-2024 한국</div>
+      <h3>공유 킥보드 QR 위에 가짜 QR 부착</h3>
+      <p>공유 킥보드·자전거의 정품 QR코드 위에 피싱 QR 스티커를 덧붙여 결제 정보를 탈취한 사건이 다수 발생</p>
+      <div class="damage">💰 피해자 수백 명, 소액결제 피해</div>
+    </div>
+    <div class="case-card" style="animation-delay:0.3s;">
+      <div class="year">2024 한국</div>
+      <h3>주차 위반 딱지 위장 큐싱</h3>
+      <p>차량에 "과태료 조회" QR코드가 적힌 가짜 주차 딱지를 부착하여 개인정보 및 금융정보를 탈취</p>
+      <div class="damage">💰 금융정보 유출 + 계좌 인출</div>
+    </div>
+    <div class="case-card" style="animation-delay:0.45s;">
+      <div class="year">2023 글로벌</div>
+      <h3>Microsoft 365 큐싱 대규모 캠페인</h3>
+      <p>이메일에 QR코드를 포함시켜 Microsoft 로그인 페이지로 위장한 피싱 사이트로 유도. 기업 임직원 수만 명 피해</p>
+      <div class="damage">💰 기업 기밀 유출, 계정 탈취</div>
+    </div>
+  </div>
+</div>
+
+<!-- PHASE 4: REVEAL -->
+<div id="phase-reveal">
+  <div class="reveal-shield">🛡️</div>
+  <h1>QR코드, 스캔하기 전에 생각하세요</h1>
+  <h2>편리함 뒤에 숨은 위험을 기억해주세요</h2>
+  <div class="defense-cards">
+    <div class="defense-card" style="animation-delay:0.15s;">
+      <div class="icon">🔍</div>
+      <div class="card-text">
+        <h3>URL 먼저 확인</h3>
+        <p>QR 스캔 후 뜨는 URL을 반드시 확인하세요. 공식 도메인(.go.kr, .ed.kr)인지 체크</p>
+      </div>
+    </div>
+    <div class="defense-card" style="animation-delay:0.3s;">
+      <div class="icon">🚫</div>
+      <div class="card-text">
+        <h3>로그인 요구 의심</h3>
+        <p>QR코드로 연결된 페이지가 로그인을 요구하면 100% 의심하세요</p>
+      </div>
+    </div>
+    <div class="defense-card" style="animation-delay:0.45s;">
+      <div class="icon">📌</div>
+      <div class="card-text">
+        <h3>덧붙인 QR 주의</h3>
+        <p>기존 QR 위에 스티커가 덧붙여져 있다면 절대 스캔하지 마세요</p>
+      </div>
+    </div>
+    <div class="defense-card" style="animation-delay:0.6s;">
+      <div class="icon">🏫</div>
+      <div class="card-text">
+        <h3>학교 안에서도 경계</h3>
+        <p>교무실·복도의 QR도 출처를 확인하세요. 내부인 위장 공격도 있습니다</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<button class="nav-btn" id="nav-btn" onclick="skipToNext()">
+  다음 단계 <span class="arrow">▶</span>
+</button>
+
+<script>
+let phase = 0;
+let timeout = null;
+let activeTab = 'victim';
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function flash() {
+  const f = document.createElement('div');
+  f.className = 'flash';
+  document.body.appendChild(f);
+  setTimeout(() => f.remove(), 250);
+}
+
+// Tab switching
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+
+  if (tab === 'victim') {
+    document.querySelector('.tab-btn.victim').classList.add('active');
+    document.getElementById('panel-victim').classList.add('active');
+  } else {
+    document.querySelector('.tab-btn.attacker').classList.add('active');
+    document.getElementById('panel-attacker').classList.add('active');
+    // Clear badge
+    document.getElementById('atk-badge').classList.remove('show');
+  }
+}
+
+// Flash attacker badge when new data arrives and victim tab is active
+function notifyAttacker() {
+  if (activeTab === 'victim') {
+    document.getElementById('atk-badge').classList.add('show');
+  }
+}
+
+function skipToNext() {
+  if (timeout) clearTimeout(timeout);
+  if (phase === 1) goPhaseExpand();
+  else if (phase === 2) goPhaseCases();
+  else if (phase === 3) goPhaseReveal();
+}
+
+// === START ===
+function startDemo() {
+  document.getElementById('phase-intro').style.display = 'none';
+  document.getElementById('phase-scenario').style.display = 'flex';
+  document.getElementById('nav-btn').style.display = 'block';
+  phase = 1;
+  runScenario();
+}
+
+// === PHASE 1: SCENARIO ===
+async function runScenario() {
+  const term = document.getElementById('attacker-terminal');
+  const atkPanel = document.getElementById('panel-attacker');
+
+  function addLine(text, cls, delay) {
+    return new Promise(resolve => {
+      setTimeout(() => {
+        const div = document.createElement('div');
+        div.className = 'atk-line ' + cls;
+        div.textContent = text;
+        term.appendChild(div);
+        atkPanel.scrollTop = atkPanel.scrollHeight;
+        notifyAttacker();
+        resolve();
+      }, delay);
+    });
+  }
+
+  const cameraView = document.getElementById('camera-view');
+  const loginView = document.getElementById('login-view');
+  const loadingView = document.getElementById('loading-view');
+  const detUrl = document.getElementById('detected-url');
+
+  cameraView.classList.add('visible');
+
+  await addLine('$ quishing-server --start --port 443 --ssl', 'cmd', 0);
+  await addLine('[✓] Phishing server on port 443', 'ok', 400);
+  await addLine('[✓] Domain: school-survey.kr-auth.com', 'ok', 300);
+  await addLine('[✓] SSL: Let\'s Encrypt (valid ✓)', 'ok', 300);
+  await addLine('', 'dim', 100);
+  await addLine('$ qr-generate --url "https://school-survey.kr-auth.com/login"', 'cmd', 500);
+  await addLine('[✓] QR → 교무실 게시판에 부착 완료', 'ok', 400);
+  await addLine('', 'dim', 100);
+  await addLine('⏳ 피해자 대기 중...', 'dim', 600);
+  await sleep(1200);
+
+  // Victim connects
+  await addLine('', 'dim', 100);
+  await addLine('━━━━━━━━━━━━━━━━━━━━━━━━', 'warn', 100);
+  await addLine('🚨 NEW VICTIM CONNECTED!', 'crit', 300);
+  await addLine('━━━━━━━━━━━━━━━━━━━━━━━━', 'warn', 100);
+
+  detUrl.textContent = '🔗 school-survey.kr-auth.com';
+  document.getElementById('red-overlay').classList.add('active');
+
+  // Vibrate if supported
+  if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+
+  await addLine('[+] IP: 211.234.xxx.xxx', 'data', 300);
+  await addLine('[+] iPhone 15 / Safari 17.2', 'data', 200);
+  await addLine('[+] Location: 전라북도 전주시', 'data', 200);
+  await addLine('', 'dim', 100);
+  await addLine('[*] Serving fake login page...', 'warn', 400);
+
+  // Show login page
+  await sleep(600);
+  cameraView.style.display = 'none';
+  loginView.style.display = 'block';
+  loginView.classList.add('visible');
+  document.getElementById('red-overlay').classList.remove('active');
+
+  await addLine('[✓] Victim loaded phishing page', 'ok', 600);
+  await addLine('[*] Waiting for input...', 'dim', 400);
+  await sleep(1200);
+
+  // Auto-type
+  const fakeId = document.getElementById('fake-id');
+  const fakePw = document.getElementById('fake-pw');
+
+  fakeId.classList.add('typing');
+  const idText = 'kimteacher';
+  for (let i = 0; i < idText.length; i++) {
+    fakeId.value = idText.substring(0, i + 1);
+    await sleep(100);
+  }
+  fakeId.classList.remove('typing');
+
+  await addLine('[📡] ID captured: kimteacher', 'data', 300);
+  await sleep(250);
+
+  fakePw.classList.add('typing');
+  const pwText = 'qwer1234!';
+  for (let i = 0; i < pwText.length; i++) {
+    fakePw.value = pwText.substring(0, i + 1);
+    await sleep(80);
+  }
+  fakePw.classList.remove('typing');
+
+  await addLine('[📡] PW captured: q*******!', 'crit', 300);
+  if (navigator.vibrate) navigator.vibrate(200);
+  await sleep(400);
+
+  // Submit
+  document.getElementById('fake-submit').style.background = '#1a3a5c';
+  document.getElementById('fake-submit').textContent = '로그인 중...';
+
+  await sleep(500);
+  loginView.style.display = 'none';
+  loadingView.style.display = 'flex';
+
+  await addLine('', 'dim', 100);
+  await addLine('━━━━━━━━━━━━━━━━━━━━━━━━', 'crit', 100);
+
+  const box = document.createElement('div');
+  box.className = 'captured-box';
+  box.innerHTML = `
+    <div class="label">🔐 CREDENTIALS CAPTURED</div>
+    <div style="color:#79c0ff;">Platform: NEIS (나이스)</div>
+    <div style="color:#79c0ff;">ID: kimteacher</div>
+    <div style="color:#f85149;">PW: qwer1234!</div>
+    <div style="color:#d29922;">Token: eyJhbGci...x4kF2g</div>
+  `;
+  term.appendChild(box);
+  atkPanel.scrollTop = atkPanel.scrollHeight;
+  notifyAttacker();
+
+  await sleep(400);
+  await addLine('━━━━━━━━━━━━━━━━━━━━━━━━', 'crit', 100);
+  await addLine('', 'dim', 100);
+  await addLine('[*] Redirecting to real NEIS...', 'warn', 400);
+  await addLine('[✓] Victim suspects nothing', 'ok', 400);
+  await addLine('', 'dim', 100);
+  await addLine('[*] Testing on real NEIS...', 'warn', 500);
+  await addLine('[✓] LOGIN SUCCESS → NEIS 접근 ✓', 'crit', 400);
+  await addLine('[✓] 학생 2,847명 정보 열람 가능', 'crit', 250);
+  await addLine('[✓] 성적/생활기록부 접근 가능', 'crit', 250);
+
+  timeout = setTimeout(() => { flash(); goPhaseExpand(); }, 4000);
+}
+
+// === PHASE 2: EXPANSION ===
+function goPhaseExpand() {
+  phase = 2;
+  document.getElementById('phase-scenario').style.display = 'none';
+  document.getElementById('phase-expand').style.display = 'block';
+
+  const creds = [
+    { t: '🔑 NEIS → kimteacher / qwer1234!', c: 'highlight' },
+    { t: '🔑 동일 비밀번호 테스트 중...', c: 'warn' },
+    { t: '✓ Gmail → 로그인 성공!', c: 'highlight' },
+    { t: '✓ Naver → 로그인 성공!', c: 'highlight' },
+    { t: '✓ 에듀넷 → 로그인 성공!', c: 'highlight' },
+    { t: '✗ 은행 → 2차 인증 차단', c: 'info' },
+    { t: '─ 비밀번호 재사용률: 67%', c: 'warn' },
+  ];
+
+  const device = [
+    { t: '📱 iPhone 15 Pro (iOS 18.2)', c: 'info' },
+    { t: '📡 SKT / WiFi: SCHOOL_5G', c: '' },
+    { t: '💾 금융앱 감지:', c: 'info' },
+    { t: '  토스 / 카카오뱅크 / NH뱅킹', c: 'warn' },
+    { t: '📋 클립보드: "계좌 110-234-..."', c: 'highlight' },
+  ];
+
+  const location = [
+    { t: '🌐 IP: 211.234.xxx.xxx', c: 'info' },
+    { t: '📍 35.8242°N, 127.1480°E', c: 'info' },
+    { t: '🏫 ○○고등학교 (교무실 추정)', c: 'warn' },
+    { t: '⏰ 12:34 (점심시간)', c: '' },
+  ];
+
+  const extra = [
+    { t: '📒 연락처 342명 수집', c: 'highlight' },
+    { t: '  → 학부모 연락처 포함 확인', c: 'highlight' },
+    { t: '📅 캘린더: "6/15 학폭 심의"', c: 'warn' },
+    { t: '📸 카메라/마이크 접근 시도', c: 'warn' },
+  ];
+
+  const lateral = [
+    { t: '▶ 동일 비밀번호로 침투:', c: 'warn' },
+    { t: '  [✓] 교무업무시스템 성공', c: 'highlight' },
+    { t: '  [✓] 학교 NAS 파일서버 성공', c: 'highlight' },
+    { t: '', c: '' },
+    { t: '▶ 2차 피싱 메일 발송:', c: 'warn' },
+    { t: '  발신: kimteacher@school.ed.kr', c: 'highlight' },
+    { t: '  대상: 교사 30명 + 학부모 312명', c: 'warn' },
+    { t: '', c: '' },
+    { t: '⚠️ QR 하나 → 학교 전체 마비 가능', c: 'highlight' },
+  ];
+
+  fillExpandPanel('panel-creds', creds, 200);
+  fillExpandPanel('panel-device', device, 180);
+  fillExpandPanel('panel-location', location, 250);
+  fillExpandPanel('panel-extra', extra, 230);
+  fillExpandPanel('panel-lateral', lateral, 180);
+
+  timeout = setTimeout(() => { flash(); goPhaseCases(); }, 9000);
+}
+
+function fillExpandPanel(id, items, interval) {
+  const panel = document.getElementById(id);
+  items.forEach((item, i) => {
+    setTimeout(() => {
+      const div = document.createElement('div');
+      div.className = 'row ' + (item.c || '');
+      div.textContent = item.t;
+      div.style.animationDelay = (i * 0.03) + 's';
+      panel.appendChild(div);
+    }, i * interval);
+  });
+}
+
+// === PHASE 3: CASES ===
+function goPhaseCases() {
+  phase = 3;
+  document.getElementById('phase-expand').style.display = 'none';
+  const el = document.getElementById('phase-cases');
+  el.style.display = 'flex';
+
+  timeout = setTimeout(() => { flash(); goPhaseReveal(); }, 8000);
+}
+
+// === PHASE 4: REVEAL ===
+function goPhaseReveal() {
+  phase = 4;
+  document.getElementById('phase-cases').style.display = 'none';
+  document.getElementById('phase-reveal').style.display = 'flex';
+  document.getElementById('nav-btn').style.display = 'none';
+  if (navigator.vibrate) navigator.vibrate([50, 30, 50, 30, 50]);
+}
+</script>
+</body>
+</html>
